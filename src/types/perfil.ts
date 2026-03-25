@@ -1,0 +1,5 @@
+export enum Perfil {
+    SOLICITANTE = "SOLICITANTE",
+    TECNICO = "TÉCNICO",
+    SUPERVISOR = "SUPERVISOR"
+}
