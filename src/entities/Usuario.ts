@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeorm";
-import { Perfil } from "../types/perfil.js";
+import { Perfil } from "../types/usr_perfil.js";
 
 @Entity('usuario')
 export class Usuario {
