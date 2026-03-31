@@ -10,11 +10,12 @@ export const createUsuarioSchema = z.object({
   ativo: z.boolean().optional(),
 });
 
-export const updateUsuarioSchema = z.object({
-  nome: z.string().min(3).optional(),
-  email: z.email().optional(),
-  senha_hash: z.string().min(6).optional(),
-  perfil: z.enum(Perfil).optional(),
-  setor: z.string().min(2).optional(),
-  ativo: z.boolean().optional(),
-});
+export const updateUsuarioSchema = createUsuarioSchema
+  .omit({ senha_hash: true })
+  .extend({
+    senha_hash: z.string().min(6).optional()
+  })
+  .partial();
+
+export type CreateUsuarioSchemaDTO = z.infer<typeof createUsuarioSchema>;
+export type UpdateUsuarioSchemaDTO = z.infer<typeof updateUsuarioSchema>;

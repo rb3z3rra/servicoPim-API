@@ -10,12 +10,7 @@ export const createEquipamentoSchema = z.object({
   ativo: z.boolean().optional(),
 });
 
-export const updateEquipamentoSchema = z.object({
-  codigo: z.string().min(2).optional(),
-  nome: z.string().min(2).optional(),
-  tipo: z.string().min(2).optional(),
-  localizacao: z.string().min(2).optional(),
-  fabricante: z.string().optional(),
-  modelo: z.string().optional(),
-  ativo: z.boolean().optional(),
-});
+export const updateEquipamentoSchema = createEquipamentoSchema.partial();
+
+export type CreateEquipamentoSchemaDTO = z.infer<typeof createEquipamentoSchema>;
+export type UpdateEquipamentoSchemaDTO = z.infer<typeof updateEquipamentoSchema>;
