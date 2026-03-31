@@ -1,50 +1,63 @@
-import { Column, Entity, PrimaryGeneratedColumn, Timestamp } from "typeorm";
-import { TipoManutencao } from "../types/os_tipoManutencao.js";
+import {  Column,  Entity,  JoinColumn,  ManyToOne,  PrimaryGeneratedColumn,} from "typeorm";
 import { Prioridade } from "../types/os_prioridade.js";
+import { TipoManutencao } from "../types/os_tipoManutencao.js";
 import { StatusOs } from "../types/os_status.js";
+import { Equipamento } from "./Equipamento.js";
+import { Usuario } from "./Usuario.js";
 
-@Entity('ordemServico')
+@Entity("ordem_servico")
 export class OrdemServico {
-    @PrimaryGeneratedColumn('uuid')
-    id!: string;
+  @PrimaryGeneratedColumn("uuid")
+  id!: string;
 
-    @Column({ type: "varchar", unique: true, })
-    numero!: string
+  @Column({ type: "varchar", unique: true })
+  numero!: string;
 
-    //    equipamento_id FK → equipamento Equipamento com falha reportada
+  @ManyToOne(() => Equipamento, (equipamento) => equipamento.ordensServico, {
+    nullable: false,
+  })
+  @JoinColumn({ name: "equipamento_id" })
+  equipamento!: Equipamento;
 
-    @Column({ type: "enum", enum: TipoManutencao })
-    tipo_manutencao!: TipoManutencao;
+  @ManyToOne(() => Usuario, (usuario) => usuario.ordensSolicitadas, {
+    nullable: false,
+  })
+  @JoinColumn({ name: "solicitante_id" })
+  solicitante!: Usuario;
 
-    @Column({ type: "enum", enum: Prioridade })
-    prioridade!: Prioridade;
+  @ManyToOne(() => Usuario, (usuario) => usuario.ordensTecnico, {
+    nullable: true,
+  })
+  @JoinColumn({ name: "tecnico_id" })
+  tecnico!: Usuario | null;
 
-    @Column({ type: "enum", enum: StatusOs })
-    status!: StatusOs
+  @Column({ type: "enum", enum: TipoManutencao })
+  tipo_manutencao!: TipoManutencao;
 
-    @Column({ type: "varchar", nullable: false })
-    descricao_falha!: string
+  @Column({ type: "enum", enum: Prioridade })
+  prioridade!: Prioridade;
 
-    //solicitante_id
+  @Column({ type: "enum", enum: StatusOs, default: StatusOs.ABERTA })
+  status!: StatusOs;
 
-    //tecnico_id?
+  @Column({ type: "varchar", nullable: false })
+  descricao_falha!: string;
 
-    @Column({ type: "timestamptz", default: Date.now() })
-    abertura_em!: Date;
+  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
+  abertura_em!: Date;
 
-    @Column({ type: "timestamptz", nullable: true })
-    inicio_em!: Date;
+  @Column({ type: "timestamptz", nullable: true })
+  inicio_em!: Date | null;
 
-    @Column({ type: "timestamptz", nullable: true })
-    conclusao_em!: Date;
+  @Column({ type: "timestamptz", nullable: true })
+  conclusao_em!: Date | null;
 
-    @Column({ type: "varchar", nullable: true })
-    descricao_servico!: string;
+  @Column({ type: "varchar", nullable: true })
+  descricao_servico!: string | null;
 
-    @Column({ type: "varchar", nullable: true })
-    pecas_utilizadas!: string;
+  @Column({ type: "varchar", nullable: true })
+  pecas_utilizadas!: string | null;
 
-    @Column({ type: "number", nullable: true })
-    horas_trabalhadas!: number;
+  @Column({ type: "numeric", nullable: true })
+  horas_trabalhadas!: number | null;
 }
-

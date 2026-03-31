@@ -1,25 +1,83 @@
-import { appDataSource } from "../database/appDataSource.js";
+import type { Repository, DataSource } from "typeorm";
 import { Equipamento } from "../entities/Equipamento.js";
 
 export class EquipamentoService {
-    private equipamentosRepository = appDataSource.getRepository(Equipamento);
+  private equipamentoRepo: Repository<Equipamento>;
 
-    public async findAll(): Promise<Equipamento[]> {
-        return await this.equipamentosRepository.find();
+  constructor(appDataSource: DataSource) {
+    this.equipamentoRepo = appDataSource.getRepository(Equipamento);
+  }
+
+  async getAll(): Promise<Equipamento[]> {
+    return await this.equipamentoRepo.find();
+  }
+
+  async getById(id: number): Promise<Equipamento> {
+    const equipamento = await this.equipamentoRepo.findOne({
+      where: { id },
+    });
+
+    if (!equipamento) {
+      throw new Error("Equipamento não encontrado");
     }
 
-    public async findById(id: number): Promise<Equipamento> {
-        const equipamento = await this.equipamentosRepository.findOne({ where: { id } })
-        if (!equipamento) {
-            throw new Error("Equipamento não encontrado")
-        }
-        return equipamento;
+    return equipamento;
+  }
+
+  async getByCodigo(codigo: string): Promise<Equipamento> {
+    const equipamento = await this.equipamentoRepo.findOne({
+      where: { codigo },
+    });
+
+    if (!equipamento) {
+      throw new Error("Equipamento não encontrado");
     }
 
-    public async create(data: Equipamento): Promise<Equipamento> {
-        const novoEquipamento = this.equipamentosRepository.create(data);
-        await this.equipamentosRepository.save(novoEquipamento);
+    return equipamento;
+  }
 
-        return novoEquipamento;
+  async createEquipamento(data: Equipamento): Promise<Equipamento> {
+    const codigoExistente = await this.equipamentoRepo.findOne({
+      where: { codigo: data.codigo },
+    });
+
+    if (codigoExistente) {
+      throw new Error("Código do equipamento já cadastrado");
     }
+
+    const novoEquipamento = this.equipamentoRepo.create(data);
+
+    await this.equipamentoRepo.save(novoEquipamento);
+
+    return novoEquipamento;
+  }
+
+  async updateEquipamento(
+    id: number,
+    data: Partial<Equipamento>
+  ): Promise<Equipamento> {
+    const equipamento = await this.getById(id);
+
+    if (data.codigo && data.codigo !== equipamento.codigo) {
+      const codigoExistente = await this.equipamentoRepo.findOne({
+        where: { codigo: data.codigo },
+      });
+
+      if (codigoExistente) {
+        throw new Error("Código do equipamento já cadastrado");
+      }
+    }
+
+    Object.assign(equipamento, data);
+
+    await this.equipamentoRepo.save(equipamento);
+
+    return equipamento;
+  }
+
+  async deleteEquipamento(id: number): Promise<void> {
+    const equipamento = await this.getById(id);
+
+    await this.equipamentoRepo.remove(equipamento);
+  }
 }
