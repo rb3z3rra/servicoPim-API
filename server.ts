@@ -12,7 +12,6 @@ import rateLimit from "express-rate-limit";
 import compression from 'compression';
 
 
-console.log("SERVER ATUAL CARREGADO");
 
 const app = express();
 
@@ -39,10 +38,7 @@ app.get("/teste", (req, res) => {
   res.send("mudou");
 });
 
-
 app.use(errorMiddleware);
-
-
 
 const PORT = 9090;
 appDataSource.initialize()

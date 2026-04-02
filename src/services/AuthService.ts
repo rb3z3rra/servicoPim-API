@@ -2,11 +2,9 @@ import type { DataSource, Repository } from "typeorm";
 import { Usuario } from "../entities/Usuario.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import type { LoginDTO } from "../types/auth_type.js";
 
-type LoginDTO = {
-  email: string;
-  senha: string;
-};
+
 
 export class AuthService {
   private userRepo: Repository<Usuario>;
