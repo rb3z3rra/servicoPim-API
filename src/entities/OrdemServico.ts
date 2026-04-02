@@ -1,4 +1,5 @@
-import {  Column,  Entity,  JoinColumn,  ManyToOne,  PrimaryGeneratedColumn,} from "typeorm";
+import {  Column,  Entity,  JoinColumn,  ManyToOne,  PrimaryGeneratedColumn } from "typeorm";
+import type { Relation } from "typeorm";
 import { Prioridade } from "../types/os_prioridade.js";
 import { TipoManutencao } from "../types/os_tipoManutencao.js";
 import { StatusOs } from "../types/os_status.js";
@@ -17,19 +18,19 @@ export class OrdemServico {
     nullable: false,
   })
   @JoinColumn({ name: "equipamento_id" })
-  equipamento!: Equipamento;
+  equipamento!: Relation<Equipamento>;
 
   @ManyToOne(() => Usuario, (usuario) => usuario.ordensSolicitadas, {
     nullable: false,
   })
   @JoinColumn({ name: "solicitante_id" })
-  solicitante!: Usuario;
+  solicitante!: Relation<Usuario>;
 
   @ManyToOne(() => Usuario, (usuario) => usuario.ordensTecnico, {
     nullable: true,
   })
   @JoinColumn({ name: "tecnico_id" })
-  tecnico!: Usuario | null;
+  tecnico!: Relation<Usuario> | null;
 
   @Column({ type: "enum", enum: TipoManutencao })
   tipo_manutencao!: TipoManutencao;
