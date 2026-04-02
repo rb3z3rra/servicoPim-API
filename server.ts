@@ -6,11 +6,28 @@ import { ordemServicoRoutes } from "./src/routes/ordemServico.routes.js";
 import { authRoutes } from "./src/routes/auth.routes.js";
 import { errorMiddleware } from "./src/middleware/errorMiddleware.js";
 
+//libs de segurança e performance
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import compression from 'compression';
+
 
 console.log("SERVER ATUAL CARREGADO");
 
 const app = express();
 
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+}));
+
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
+
+app.use(compression({ threshold: 1024 }))
 
 app.use(express.json());
 
