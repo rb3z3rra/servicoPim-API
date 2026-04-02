@@ -7,7 +7,6 @@ import { authRoutes } from "./src/routes/auth.routes.js";
 import { errorMiddleware } from "./src/middleware/errorMiddleware.js";
 
 
-console.log("SERVER ATUAL CARREGADO");
 
 const app = express();
 
@@ -22,10 +21,7 @@ app.get("/teste", (req, res) => {
   res.send("mudou");
 });
 
-
 app.use(errorMiddleware);
-
-
 
 const PORT = 9090;
 appDataSource.initialize()
