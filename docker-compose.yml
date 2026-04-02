@@ -27,10 +27,6 @@ services:
       DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
       NODE_ENV: ${NODE_ENV}
-    volumes:
-      - .:/app
-      - /app/node_modules
-    command: npm run dev
 
   pgadmin:
     image: dpage/pgadmin4
