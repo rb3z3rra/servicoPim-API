@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals';
-import { OrdemServicoService } from "../src/services/OrdemServicoService.js";
-import { OrdemServico } from "../src/entities/OrdemServico.js";
-import { Equipamento } from "../src/entities/Equipamento.js";
-import { Usuario } from "../src/entities/Usuario.js";
-import { StatusOs } from "../src/types/os_status.js";
-import { Prioridade } from "../src/types/os_prioridade.js";
-import { TipoManutencao } from "../src/types/os_tipoManutencao.js";
-import { Perfil } from "../src/types/usr_perfil.js";
+import { OrdemServicoService } from "../../src/services/OrdemServicoService.js";
+import { OrdemServico } from "../../src/entities/OrdemServico.js";
+import { Equipamento } from "../../src/entities/Equipamento.js";
+import { Usuario } from "../../src/entities/Usuario.js";
+import { StatusOs } from "../../src/types/os_status.js";
+import { Prioridade } from "../../src/types/os_prioridade.js";
+import { TipoManutencao } from "../../src/types/os_tipoManutencao.js";
+import { Perfil } from "../../src/types/usr_perfil.js";
 
 let ordemServicoService: OrdemServicoService;
 let mockDataSource: any;

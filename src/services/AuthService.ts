@@ -38,7 +38,7 @@ export class AuthService {
       throw new Error("Email ou senha inválidos");
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       {
         sub: usuario.id,
         email: usuario.email,
@@ -47,6 +47,16 @@ export class AuthService {
       process.env.JWT_SECRET as string,
       {
         expiresIn: "1d",
+      }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        sub: usuario.id,
+      },
+      process.env.JWT_REFRESH_SECRET as string,
+      {
+        expiresIn: "7d",
       }
     );
 
@@ -59,7 +69,8 @@ export class AuthService {
         setor: usuario.setor,
         ativo: usuario.ativo,
       },
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 }

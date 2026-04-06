@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
-import { UsuarioService } from "../src/services/UsuarioService.js";
-import { Usuario } from "../src/entities/Usuario.js";
-import { Perfil } from "../src/types/usr_perfil.js";
+import { UsuarioService } from "../../src/services/UsuarioService.js";
+import { Usuario } from "../../src/entities/Usuario.js";
+import { Perfil } from "../../src/types/usr_perfil.js";
 
 let usuarioService: UsuarioService;
 let mockDataSource: any;

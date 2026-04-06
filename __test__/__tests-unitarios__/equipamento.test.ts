@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
-import { EquipamentoService } from "../src/services/EquipamentoService.js";
-import { Equipamento } from "../src/entities/Equipamento.js";
+import { EquipamentoService } from "../../src/services/EquipamentoService.js";
+import { Equipamento } from "../../src/entities/Equipamento.js";
 
 let equipamentoService: EquipamentoService;
 let mockDataSource: any;
