@@ -11,4 +11,8 @@ authRoutes.post("/login",  validarBody(loginSchemaDTO),
   asyncHandler(authController.login.bind(authController))
 );
 
+authRoutes.post("/refresh",  validarBody(loginSchemaDTO),
+  asyncHandler(authController.refresh.bind(authController))
+);
+
 export { authRoutes };
