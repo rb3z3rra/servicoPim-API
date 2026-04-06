@@ -1,6 +1,7 @@
-import {  Column,  CreateDateColumn,  Entity,  OneToMany,  PrimaryGeneratedColumn,} from "typeorm";
+import {  Column,  CreateDateColumn,  Entity,  OneToMany,  PrimaryGeneratedColumn, type Relation,} from "typeorm";
 import { Perfil } from "../types/usr_perfil.js";
 import { OrdemServico } from "./OrdemServico.js";
+import { HistoricoOS } from "./HistoricoOS.js";
 
 @Entity("usuario")
 export class Usuario {
@@ -33,4 +34,7 @@ export class Usuario {
 
   @OneToMany(() => OrdemServico, (ordemServico) => ordemServico.tecnico)
   ordensTecnico!: OrdemServico[];
+
+  @OneToMany(() => HistoricoOS, (historicoOS) => historicoOS.usuario)
+  historicosOS!: Relation<HistoricoOS[]>;
 }

@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { Equipamento } from "../entities/Equipamento.js";
 import { OrdemServico } from "../entities/OrdemServico.js";
 import { Usuario } from "../entities/Usuario.js";
+import { HistoricoOS } from "../entities/HistoricoOS.js";
 
 dotenv.config();
 
@@ -16,7 +17,7 @@ export const appDataSource = new DataSource({
   password: process.env.DB_PASS as string,
   database: process.env.DB_NAME as string,
 
-  entities: [Equipamento, OrdemServico, Usuario],
+  entities: [Equipamento, OrdemServico, Usuario,  HistoricoOS],
   logging: true,
   synchronize: process.env.NODE_ENV !== "production",
 

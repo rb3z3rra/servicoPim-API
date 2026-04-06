@@ -4,8 +4,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { LoginDTO } from "../types/auth_type.js";
 
-
-
 export class AuthService {
   private userRepo: Repository<Usuario>;
 
@@ -32,22 +30,32 @@ export class AuthService {
       throw new Error("Email ou senha inválidos");
     }
 
+    if (!usuario.ativo) {
+      throw new Error("Usuário inativo");
+    }
+
     const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha_hash);
 
     if (!senhaCorreta) {
       throw new Error("Email ou senha inválidos");
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       {
         sub: usuario.id,
         email: usuario.email,
         perfil: usuario.perfil,
       },
       process.env.JWT_SECRET as string,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
       {
-        expiresIn: "1d",
-      }
+        sub: usuario.id,
+      },
+      process.env.JWT_REFRESH_SECRET as string,
+      { expiresIn: "7d" }
     );
 
     return {
@@ -59,7 +67,56 @@ export class AuthService {
         setor: usuario.setor,
         ativo: usuario.ativo,
       },
-      token,
+      accessToken,
+      refreshToken,
     };
+  }
+
+  async refresh(refreshToken: string) {
+    try {
+      const decoded = jwt.verify(
+        refreshToken,
+        process.env.JWT_REFRESH_SECRET as string
+      ) as jwt.JwtPayload;
+
+      const userId = decoded.sub as string;
+
+      const usuario = await this.userRepo.findOne({
+        where: { id: userId },
+        select: [
+          "id",
+          "nome",
+          "email",
+          "perfil",
+          "setor",
+          "ativo",
+          "created_at",
+        ],
+      });
+
+      if (!usuario) {
+        throw new Error("Usuário não encontrado");
+      }
+
+      if (!usuario.ativo) {
+        throw new Error("Usuário inativo");
+      }
+
+      const accessToken = jwt.sign(
+        {
+          sub: usuario.id,
+          email: usuario.email,
+          perfil: usuario.perfil,
+        },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "15m" }
+      );
+
+      return {
+        accessToken,
+      };
+    } catch {
+      throw new Error("Refresh token inválido ou expirado");
+    }
   }
 }

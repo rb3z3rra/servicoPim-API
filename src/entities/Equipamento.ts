@@ -1,6 +1,7 @@
 import {  Column,  Entity,  OneToMany,  PrimaryGeneratedColumn,} from "typeorm";
 import { OrdemServico } from "./OrdemServico.js";
 
+
 @Entity("equipamento")
 export class Equipamento {
   @PrimaryGeneratedColumn("increment")
@@ -29,4 +30,6 @@ export class Equipamento {
 
   @OneToMany(() => OrdemServico, (ordemServico) => ordemServico.equipamento)
   ordensServico!: OrdemServico[];
+
+ 
 }
