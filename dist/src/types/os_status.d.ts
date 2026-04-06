@@ -1,8 +1,0 @@
-export declare enum StatusOs {
-    ABERTA = "ABERTA",
-    EM_ANDAMENTO = "EM_ANDAMENTO",
-    AGUARDANDO_PECA = "AGUARDANDO_PECA",
-    CONCLUIDA = "CONCLUIDA",
-    CANCELADA = "CANCELADA"
-}
-//# sourceMappingURL=os_status.d.ts.map

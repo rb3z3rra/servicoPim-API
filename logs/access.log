@@ -1,5 +1,0 @@
-::1 - - [02/Apr/2026:22:44:05 +0000] "GET /teste HTTP/1.1" 200 5 "-" "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.28000.1743"
-::ffff:127.0.0.1 - - [06/Apr/2026:17:42:10 +0000] "POST /auth/login HTTP/1.1" 200 219 "-" "-"
-::ffff:127.0.0.1 - - [06/Apr/2026:17:42:10 +0000] "POST /auth/login HTTP/1.1" 400 104 "-" "-"
-::ffff:127.0.0.1 - - [06/Apr/2026:18:07:07 +0000] "POST /auth/login HTTP/1.1" 200 648 "-" "-"
-::ffff:127.0.0.1 - - [06/Apr/2026:18:07:07 +0000] "POST /auth/login HTTP/1.1" 400 39 "-" "-"
