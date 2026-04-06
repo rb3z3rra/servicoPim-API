@@ -71,16 +71,19 @@ app.get("/teste", (req, res) => {
 app.use(errorMiddleware);
 
 const PORT = 9090;
-appDataSource.initialize()
 
+if (process.env.NODE_ENV !== 'test') {
+  appDataSource.initialize()
+    .then(() => {
+      console.log("Banco conectado com sucesso!");
 
-  .then(() => {
-    console.log("Banco conectado com sucesso!");
-
-    app.listen(PORT, () => {
-      console.log(`Servidor rodando na porta ${PORT}`);
+      app.listen(PORT, () => {
+        console.log(`Servidor rodando na porta ${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Erro ao conectar no banco:", error);
     });
-  })
-  .catch((error) => {
-    console.error("Erro ao conectar no banco:", error);
-  });
+}
+
+export { app };
