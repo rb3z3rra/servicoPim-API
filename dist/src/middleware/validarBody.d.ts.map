@@ -1,0 +1,1 @@
+{"version":3,"file":"validarBody.d.ts","sourceRoot":"","sources":["../../../src/middleware/validarBody.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,YAAY,EAAE,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAC;AAC/D,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,KAAK,CAAC;AAErC,wBAAgB,WAAW,CAAC,MAAM,EAAE,SAAS,IACnC,KAAK,OAAO,EAAE,KAAK,QAAQ,EAAE,MAAM,YAAY,KAAG,QAAQ,GAAG,IAAI,CAa1E"}
