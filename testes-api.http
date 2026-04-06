@@ -1,0 +1,105 @@
+@baseUrl = http://localhost:9090
+
+### ===============================
+### 🔐 AUTENTICAÇÃO
+### ===============================
+
+# 1. Login (Ao fazer sucesso, você ganhará seu Token nas respostas)
+# @name realizarLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "usuario@exemplo.com",
+  "senha": "password123"
+}
+
+###
+# Dica: Substitua a palavra SEU_TOKEN_AQUI pelo token real 
+# devolvido pelo login para testar as rotas abaixo!
+@token = SEU_TOKEN_AQUI
+
+### ===============================
+### 👤 USUÁRIOS
+### ===============================
+
+# 2. Criar Usuário 
+POST {{baseUrl}}/usuarios
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nome": "João Silva",
+  "email": "joao.silva@exemplo.com",
+  "senha_hash": "senha_segura_123",
+  "perfil": "TÉCNICO", 
+  "setor": "Manutenção",
+  "ativo": true
+}
+
+###
+
+# 3. Listar Todos Usuários
+GET {{baseUrl}}/usuarios
+Authorization: Bearer {{token}}
+
+
+### ===============================
+### ⚙️ EQUIPAMENTOS
+### ===============================
+
+# 4. Criar Equipamento
+POST {{baseUrl}}/equipamentos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "codigo": "EQP-001",
+  "nome": "Torno Mecânico",
+  "tipo": "Industrial",
+  "localizacao": "Setor A",
+  "fabricante": "IndustriaX",
+  "modelo": "TX-500",
+  "ativo": true
+}
+
+###
+
+# 5. Listar Equipamentos
+GET {{baseUrl}}/equipamentos
+Authorization: Bearer {{token}}
+
+
+### ===============================
+### 📑 ORDENS DE SERVIÇO
+### ===============================
+
+# 6. Criar Ordem de Serviço
+POST {{baseUrl}}/ordens-servico
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "equipamentoId": 1,
+  "solicitanteId": "COLOQUE_UUID_DA_PESSOA_AQUI",
+  "tipo_manutencao": "PREVENTIVA",
+  "prioridade": "ALTA",
+  "descricao_falha": "O equipamento está fazendo um barulho metálico muito alto durante as rotações."
+}
+
+###
+
+# 7. Listar Ordens de Serviço
+GET {{baseUrl}}/ordens-servico
+Authorization: Bearer {{token}}
+
+###
+
+# 8. Atualizar Status (Ex: EM_ANDAMENTO)
+PATCH {{baseUrl}}/ordens-servico/ID-DA-OS-AQUI/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "EM_ANDAMENTO"
+}

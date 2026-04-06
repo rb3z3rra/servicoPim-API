@@ -11,9 +11,39 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from 'compression';
 
+// morgan e fs para logs
+import morgan from "morgan";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+// Em ES Modules, precisamos definir __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// --- CONFIGURAÇÃO DO MORGAN ---
+// 1. Criar a pasta 'logs' automaticamente caso ela não exista
+// Usamos process.cwd() para garantir que a pasta logs seja criada na raiz do projeto,
+// mesmo quando rodando a versão compilada dentro da pasta 'dist' no Docker.
+const logDirectory = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logDirectory)) {
+    fs.mkdirSync(logDirectory);
+}
+
+// 2. Definir o local e a permissão de onde o arquivo de texto será gerado
+const accessLogStream = fs.createWriteStream(
+    path.join(logDirectory, 'access.log'), 
+    { flags: 'a' } // O 'a' garante que novos logs sejam empilhados sem apagar os antigos
+);
+
+// 3. Salvar o log completo das requisições no arquivo local
+app.use(morgan('combined', { stream: accessLogStream }));
+
+// 4. (Opcional) Printar o log colorido e simplificado no terminal do seu editor
+app.use(morgan('dev'));
+// ------------------------------
 
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
