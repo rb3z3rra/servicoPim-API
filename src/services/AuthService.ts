@@ -4,8 +4,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { LoginDTO } from "../types/auth_type.js";
 
-
-
 export class AuthService {
   private userRepo: Repository<Usuario>;
 
@@ -32,6 +30,10 @@ export class AuthService {
       throw new Error("Email ou senha inválidos");
     }
 
+    if (!usuario.ativo) {
+      throw new Error("Usuário inativo");
+    }
+
     const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha_hash);
 
     if (!senhaCorreta) {
@@ -45,9 +47,7 @@ export class AuthService {
         perfil: usuario.perfil,
       },
       process.env.JWT_SECRET as string,
-      {
-        expiresIn: "1d",
-      }
+      { expiresIn: "15m" }
     );
 
     const refreshToken = jwt.sign(
@@ -55,9 +55,7 @@ export class AuthService {
         sub: usuario.id,
       },
       process.env.JWT_REFRESH_SECRET as string,
-      {
-        expiresIn: "7d",
-      }
+      { expiresIn: "7d" }
     );
 
     return {
@@ -74,15 +72,17 @@ export class AuthService {
     };
   }
 
-  async refreshToken(token: string) {
+  async refresh(token: string) {
     try {
       const decoded = jwt.verify(
         token,
         process.env.JWT_REFRESH_SECRET as string
       ) as { sub: string };
 
+      const userId = decoded.sub;
+
       const usuario = await this.userRepo.findOne({
-        where: { id: decoded.sub },
+        where: { id: userId },
       });
 
       if (!usuario || !usuario.ativo) {
@@ -96,9 +96,7 @@ export class AuthService {
           perfil: usuario.perfil,
         },
         process.env.JWT_SECRET as string,
-        {
-          expiresIn: "1d",
-        }
+        { expiresIn: "15m" }
       );
 
       const refreshToken = jwt.sign(
@@ -106,9 +104,7 @@ export class AuthService {
           sub: usuario.id,
         },
         process.env.JWT_REFRESH_SECRET as string,
-        {
-          expiresIn: "7d",
-        }
+        { expiresIn: "7d" }
       );
 
       return {

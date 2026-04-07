@@ -4,6 +4,7 @@ import { Equipamento } from "../entities/Equipamento.js";
 import { Usuario } from "../entities/Usuario.js";
 import { StatusOs } from "../types/os_status.js";
 import { Perfil } from "../types/usr_perfil.js";
+import { HistoricoOSService } from "./HistoricoOSService.js";
 
 type CreateOrdemServicoDTO = {
   equipamentoId: number;
@@ -31,11 +32,13 @@ export class OrdemServicoService {
   private ordemServicoRepo: Repository<OrdemServico>;
   private equipamentoRepo: Repository<Equipamento>;
   private usuarioRepo: Repository<Usuario>;
+  private historicoService: HistoricoOSService;
 
   constructor(appDataSource: DataSource) {
     this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
     this.equipamentoRepo = appDataSource.getRepository(Equipamento);
     this.usuarioRepo = appDataSource.getRepository(Usuario);
+    this.historicoService = new HistoricoOSService();
   }
 
   async getAll(): Promise<OrdemServico[]> {
@@ -58,9 +61,7 @@ export class OrdemServicoService {
     return ordemServico;
   }
 
-  async createOrdemServico(
-    data: CreateOrdemServicoDTO
-  ): Promise<OrdemServico> {
+  async createOrdemServico(data: CreateOrdemServicoDTO): Promise<OrdemServico> {
     const equipamento = await this.equipamentoRepo.findOne({
       where: { id: data.equipamentoId },
     });
@@ -92,12 +93,22 @@ export class OrdemServicoService {
 
     await this.ordemServicoRepo.save(novaOrdemServico);
 
+    // histórico opcional na criação
+    await this.historicoService.registrarHistorico(
+      novaOrdemServico.id,
+      solicitante.id,
+      null,
+      StatusOs.ABERTA,
+      "Ordem de serviço criada"
+    );
+
     return await this.getById(novaOrdemServico.id);
   }
 
   async atribuirTecnico(
     id: string,
-    data: AtribuirTecnicoDTO
+    data: AtribuirTecnicoDTO,
+    usuarioId: string
   ): Promise<OrdemServico> {
     const ordemServico = await this.getById(id);
 
@@ -113,6 +124,8 @@ export class OrdemServicoService {
       throw new Error("O usuário informado não é um técnico");
     }
 
+    const statusAnterior = ordemServico.status;
+
     ordemServico.tecnico = tecnico;
 
     if (ordemServico.status === StatusOs.ABERTA) {
@@ -122,12 +135,21 @@ export class OrdemServicoService {
 
     await this.ordemServicoRepo.save(ordemServico);
 
+    await this.historicoService.registrarHistorico(
+      ordemServico.id,
+      usuarioId,
+      statusAnterior,
+      ordemServico.status,
+      `Técnico ${tecnico.nome} atribuído à OS`
+    );
+
     return await this.getById(ordemServico.id);
   }
 
   async atualizarStatus(
     id: string,
-    data: AtualizarStatusDTO
+    data: AtualizarStatusDTO,
+    usuarioId: string
   ): Promise<OrdemServico> {
     const ordemServico = await this.getById(id);
 
@@ -139,6 +161,8 @@ export class OrdemServicoService {
       throw new Error("Não é possível alterar uma OS cancelada");
     }
 
+    const statusAnterior = ordemServico.status;
+
     ordemServico.status = data.status;
 
     if (data.status === StatusOs.EM_ANDAMENTO && !ordemServico.inicio_em) {
@@ -147,12 +171,21 @@ export class OrdemServicoService {
 
     await this.ordemServicoRepo.save(ordemServico);
 
+    await this.historicoService.registrarHistorico(
+      ordemServico.id,
+      usuarioId,
+      statusAnterior,
+      ordemServico.status,
+      `Status alterado de ${statusAnterior} para ${ordemServico.status}`
+    );
+
     return await this.getById(ordemServico.id);
   }
 
   async concluirOrdemServico(
     id: string,
-    data: ConcluirOrdemServicoDTO
+    data: ConcluirOrdemServicoDTO,
+    usuarioId: string
   ): Promise<OrdemServico> {
     const ordemServico = await this.getById(id);
 
@@ -164,9 +197,14 @@ export class OrdemServicoService {
       throw new Error("Descrição do serviço é obrigatória");
     }
 
-    if (data.horas_trabalhadas === undefined || data.horas_trabalhadas === null) {
+    if (
+      data.horas_trabalhadas === undefined ||
+      data.horas_trabalhadas === null
+    ) {
       throw new Error("Horas trabalhadas é obrigatório");
     }
+
+    const statusAnterior = ordemServico.status;
 
     ordemServico.descricao_servico = data.descricao_servico;
     ordemServico.pecas_utilizadas = data.pecas_utilizadas ?? null;
@@ -179,6 +217,14 @@ export class OrdemServicoService {
     }
 
     await this.ordemServicoRepo.save(ordemServico);
+
+    await this.historicoService.registrarHistorico(
+      ordemServico.id,
+      usuarioId,
+      statusAnterior,
+      ordemServico.status,
+      "Ordem de serviço concluída"
+    );
 
     return await this.getById(ordemServico.id);
   }
