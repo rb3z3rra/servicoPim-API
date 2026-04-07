@@ -8,8 +8,11 @@ import { Prioridade } from "../../src/types/os_prioridade.js";
 import { TipoManutencao } from "../../src/types/os_tipoManutencao.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
 
+import { HistoricoOSService } from "../../src/services/HistoricoOSService.js";
+
 let ordemServicoService: OrdemServicoService;
 let mockDataSource: any;
+let mockHistoricoService: any;
 
 beforeAll(() => {
     mockDataSource = {
@@ -21,7 +24,12 @@ beforeAll(() => {
             count: jest.fn()
         })
     };
-    ordemServicoService = new OrdemServicoService(mockDataSource);
+    
+    mockHistoricoService = {
+        registrarHistorico: jest.fn().mockResolvedValue({})
+    };
+
+    ordemServicoService = new OrdemServicoService(mockDataSource, mockHistoricoService as any);
 });
 
 beforeEach(() => {
@@ -207,7 +215,7 @@ describe("Testes de Ordens de Serviço", () => {
             };
             mockDataSource.getRepository().findOne.mockResolvedValue(updatedOS);
 
-            const result = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" });
+            const result = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" }, "admin-uuid");
 
             expect(result.status).toBe(StatusOs.EM_ANDAMENTO);
             expect(result.tecnico).toEqual(mockTecnico);
@@ -229,7 +237,7 @@ describe("Testes de Ordens de Serviço", () => {
                 .mockResolvedValueOnce(mockOS) // getById
                 .mockResolvedValueOnce(null); // tecnico não encontrado
 
-            await expect(ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "invalid-uuid" })).rejects.toThrow("Técnico não encontrado");
+            await expect(ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "invalid-uuid" }, "admin-uuid")).rejects.toThrow("Técnico não encontrado");
         });
 
         test("Deve atualizar status da ordem de serviço", async () => {
@@ -249,7 +257,7 @@ describe("Testes de Ordens de Serviço", () => {
             const updatedOS = { ...mockOS, status: StatusOs.AGUARDANDO_PECA };
             mockDataSource.getRepository().findOne.mockResolvedValue(updatedOS);
 
-            const result = await ordemServicoService.atualizarStatus("os-uuid-1", { status: StatusOs.AGUARDANDO_PECA });
+            const result = await ordemServicoService.atualizarStatus("os-uuid-1", { status: StatusOs.AGUARDANDO_PECA }, "admin-uuid");
 
             expect(result.status).toBe(StatusOs.AGUARDANDO_PECA);
         });
@@ -283,7 +291,7 @@ describe("Testes de Ordens de Serviço", () => {
             };
             mockDataSource.getRepository().findOne.mockResolvedValue(concludedOS);
 
-            const result = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData);
+            const result = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData, "admin-uuid");
 
             expect(result.status).toBe(StatusOs.CONCLUIDA);
             expect(result.descricao_servico).toBe("Substituição da placa-mãe");
@@ -359,7 +367,7 @@ describe("Testes de Ordens de Serviço", () => {
             };
             mockDataSource.getRepository().findOne.mockResolvedValue(osComTecnico);
 
-            const osAtribuida = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" });
+            const osAtribuida = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" }, "admin-uuid");
             expect(osAtribuida.status).toBe(StatusOs.EM_ANDAMENTO);
             expect(osAtribuida.tecnico).toBeDefined();
 
@@ -381,7 +389,7 @@ describe("Testes de Ordens de Serviço", () => {
             };
             mockDataSource.getRepository().findOne.mockResolvedValue(osConcluida);
 
-            const osFinal = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData);
+            const osFinal = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData, "admin-uuid");
             expect(osFinal.status).toBe(StatusOs.CONCLUIDA);
             expect(osFinal.descricao_servico).toBe("Reparo concluído com sucesso");
             expect(osFinal.horas_trabalhadas).toBe(2);

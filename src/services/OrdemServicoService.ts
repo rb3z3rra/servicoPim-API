@@ -34,11 +34,14 @@ export class OrdemServicoService {
   private usuarioRepo: Repository<Usuario>;
   private historicoService: HistoricoOSService;
 
-  constructor(appDataSource: DataSource) {
+  constructor(
+    appDataSource: DataSource,
+    historicoService?: HistoricoOSService
+  ) {
     this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
     this.equipamentoRepo = appDataSource.getRepository(Equipamento);
     this.usuarioRepo = appDataSource.getRepository(Usuario);
-    this.historicoService = new HistoricoOSService();
+    this.historicoService = historicoService ?? new HistoricoOSService();
   }
 
   async getAll(): Promise<OrdemServico[]> {
