@@ -79,7 +79,7 @@ export class AuthService {
         token,
         process.env.JWT_REFRESH_SECRET as string
       ) as { sub: string };
-    } catch (err) {
+    } catch {
       throw new Error("Refresh Token inválido ou expirado");
     }
 
