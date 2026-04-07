@@ -58,16 +58,6 @@ export class AuthService {
       { expiresIn: "7d" }
     );
 
-    const refreshToken = jwt.sign(
-      {
-        sub: usuario.id,
-      },
-      process.env.JWT_REFRESH_SECRET as string,
-      {
-        expiresIn: "7d",
-      }
-    );
-
     return {
       usuario: {
         id: usuario.id,
@@ -82,34 +72,21 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(token: string) {
     try {
       const decoded = jwt.verify(
-        refreshToken,
+        token,
         process.env.JWT_REFRESH_SECRET as string
-      ) as jwt.JwtPayload;
+      ) as { sub: string };
 
-      const userId = decoded.sub as string;
+      const userId = decoded.sub;
 
       const usuario = await this.userRepo.findOne({
         where: { id: userId },
-        select: [
-          "id",
-          "nome",
-          "email",
-          "perfil",
-          "setor",
-          "ativo",
-          "created_at",
-        ],
       });
 
-      if (!usuario) {
-        throw new Error("Usuário não encontrado");
-      }
-
-      if (!usuario.ativo) {
-        throw new Error("Usuário inativo");
+      if (!usuario || !usuario.ativo) {
+        throw new Error("Usuário inválido ou inativo");
       }
 
       const accessToken = jwt.sign(
@@ -122,11 +99,20 @@ export class AuthService {
         { expiresIn: "15m" }
       );
 
+      const refreshToken = jwt.sign(
+        {
+          sub: usuario.id,
+        },
+        process.env.JWT_REFRESH_SECRET as string,
+        { expiresIn: "7d" }
+      );
+
       return {
         accessToken,
+        refreshToken,
       };
     } catch {
-      throw new Error("Refresh token inválido ou expirado");
+      throw new Error("Refresh Token inválido ou expirado");
     }
   }
 }
