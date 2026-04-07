@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { UsuarioService } from "../../src/services/UsuarioService.js";
 import { Usuario } from "../../src/entities/Usuario.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
+import bcrypt from "bcryptjs";
 
 let usuarioService: UsuarioService;
 let mockDataSource: any;
@@ -211,6 +212,63 @@ describe("Testes CRUD de Usuários", () => {
             await expect(usuarioService.deleteUser("user-uuid-2")).resolves.toBeUndefined();
 
             expect(mockDataSource.getRepository().remove).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe("Hash de Senha (Bcrypt)", () => {
+        test("Deve gerar hash da senha ao criar usuário", async () => {
+            const senhaOriginal = "minhaSenha123";
+            const newUser = {
+                nome: "Teste Hash",
+                email: "hash@email.com",
+                senha_hash: senhaOriginal,
+                perfil: Perfil.SOLICITANTE,
+                setor: "TI",
+                ativo: true
+            };
+
+            mockDataSource.getRepository().findOne.mockResolvedValue(null);
+            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
+                entity.id = "user-uuid-hash";
+                entity.created_at = new Date();
+                return entity;
+            });
+
+            const result = await usuarioService.createUser(newUser as Usuario);
+
+            // A senha salva NÃO deve ser a original (deve ter sido hasheada)
+            expect(result.senha_hash).not.toBe(senhaOriginal);
+            // O hash gerado deve ser válido com bcrypt
+            const senhaConfere = await bcrypt.compare(senhaOriginal, result.senha_hash);
+            expect(senhaConfere).toBe(true);
+        });
+
+        test("Deve gerar hashes diferentes para a mesma senha (salt)", async () => {
+            const senha = "mesmaSenha123";
+
+            mockDataSource.getRepository().findOne.mockResolvedValue(null);
+            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
+
+            let savedEntities: any[] = [];
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
+                entity.id = `user-uuid-${savedEntities.length + 1}`;
+                entity.created_at = new Date();
+                savedEntities.push({ ...entity });
+                return entity;
+            });
+
+            const user1Data = { nome: "User 1", email: "user1@email.com", senha_hash: senha, perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true };
+            const user2Data = { nome: "User 2", email: "user2@email.com", senha_hash: senha, perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true };
+
+            const user1 = await usuarioService.createUser(user1Data as Usuario);
+            const user2 = await usuarioService.createUser(user2Data as Usuario);
+
+            // Hashes devem ser diferentes por causa do salt
+            expect(user1.senha_hash).not.toBe(user2.senha_hash);
+            // Ambos devem ser válidos
+            expect(await bcrypt.compare(senha, user1.senha_hash)).toBe(true);
+            expect(await bcrypt.compare(senha, user2.senha_hash)).toBe(true);
         });
     });
 

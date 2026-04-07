@@ -295,6 +295,76 @@ describe("Testes de Ordens de Serviço", () => {
         });
     });
 
+    describe("Validações de encerramento da OS", () => {
+        const mockOSComTecnico = {
+            id: "os-uuid-1",
+            numero: "OS-0001",
+            equipamento: { id: 1, nome: "Notebook Dell" },
+            solicitante: { id: "user-uuid-1", nome: "João Silva" },
+            tecnico: { id: "user-uuid-3", nome: "Pedro Costa" },
+            status: StatusOs.EM_ANDAMENTO,
+            abertura_em: new Date(),
+            inicio_em: new Date()
+        };
+
+        test("Deve lançar erro ao concluir OS sem descricao_servico", async () => {
+            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
+
+            await expect(
+                ordemServicoService.concluirOrdemServico("os-uuid-1", {
+                    descricao_servico: "",
+                    horas_trabalhadas: 2
+                } as any, "user-uuid-3")
+            ).rejects.toThrow("Descrição do serviço é obrigatória");
+        });
+
+        test("Deve lançar erro ao concluir OS sem horas_trabalhadas (undefined)", async () => {
+            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
+
+            await expect(
+                ordemServicoService.concluirOrdemServico("os-uuid-1", {
+                    descricao_servico: "Reparo realizado",
+                    horas_trabalhadas: undefined
+                } as any, "user-uuid-3")
+            ).rejects.toThrow("Horas trabalhadas é obrigatório");
+        });
+
+        test("Deve lançar erro ao concluir OS sem horas_trabalhadas (null)", async () => {
+            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
+
+            await expect(
+                ordemServicoService.concluirOrdemServico("os-uuid-1", {
+                    descricao_servico: "Reparo realizado",
+                    horas_trabalhadas: null
+                } as any, "user-uuid-3")
+            ).rejects.toThrow("Horas trabalhadas é obrigatório");
+        });
+
+        test("Deve concluir OS com sucesso mesmo sem pecas_utilizadas (campo opcional)", async () => {
+            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
+            mockDataSource.getRepository().save.mockResolvedValue(mockOSComTecnico);
+
+            const osConcluida = {
+                ...mockOSComTecnico,
+                descricao_servico: "Reparo concluído",
+                pecas_utilizadas: null,
+                horas_trabalhadas: 3,
+                status: StatusOs.CONCLUIDA,
+                conclusao_em: new Date()
+            };
+            mockDataSource.getRepository().findOne.mockResolvedValue(osConcluida);
+
+            const result = await ordemServicoService.concluirOrdemServico("os-uuid-1", {
+                descricao_servico: "Reparo concluído",
+                horas_trabalhadas: 3
+            }, "user-uuid-3");
+
+            expect(result.status).toBe(StatusOs.CONCLUIDA);
+            expect(result.pecas_utilizadas).toBeNull();
+            expect(result.horas_trabalhadas).toBe(3);
+        });
+    });
+
     describe("Testes integrados (Fluxo completo de OS)", () => {
         test("Deve realizar fluxo completo de ordem de serviço", async () => {
             // Limpar mocks antes do teste integrado
