@@ -3,11 +3,11 @@ import { app } from "../../server.js";
 import { appDataSource } from "../../src/database/appDataSource.js";
 import { Usuario } from "../../src/entities/Usuario.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
-import bcrypt from "bcryptjs";
 import { Like } from "typeorm";
+import bcrypt from "bcryptjs";
 
 describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => {
-    
+
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
@@ -32,9 +32,9 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
     test("POST /auth/login - Deve retornar accessToken e refreshToken REAIS do banco", async () => {
         const email = "login-sucesso@teste.com";
         const repo = appDataSource.getRepository(Usuario);
-        
+
         await repo.delete({ email });
-        
+
         const senhaHash = await bcrypt.hash("senha123", 10);
         await repo.save({
             nome: "Usuario Sucesso",
@@ -55,7 +55,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("accessToken");
         expect(response.body).toHaveProperty("refreshToken");
-        
+
         await repo.delete({ email });
     });
 
@@ -81,9 +81,9 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
                 senha: "senha_errada"
             });
 
-        expect(response.status).toBe(400); 
+        expect(response.status).toBe(400);
         expect(response.body.message).toBe("Email ou senha inválidos");
-        
+
         await repo.delete({ email });
     });
 
