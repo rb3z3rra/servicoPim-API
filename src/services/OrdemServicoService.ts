@@ -38,7 +38,7 @@ export class OrdemServicoService {
     this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
     this.equipamentoRepo = appDataSource.getRepository(Equipamento);
     this.usuarioRepo = appDataSource.getRepository(Usuario);
-    this.historicoService = new HistoricoOSService();
+    this.historicoService = new HistoricoOSService(appDataSource);
   }
 
   async getAll(): Promise<OrdemServico[]> {

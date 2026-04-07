@@ -73,46 +73,47 @@ export class AuthService {
   }
 
   async refresh(token: string) {
+    let decoded;
     try {
-      const decoded = jwt.verify(
+      decoded = jwt.verify(
         token,
         process.env.JWT_REFRESH_SECRET as string
       ) as { sub: string };
-
-      const userId = decoded.sub;
-
-      const usuario = await this.userRepo.findOne({
-        where: { id: userId },
-      });
-
-      if (!usuario || !usuario.ativo) {
-        throw new Error("Usuário inválido ou inativo");
-      }
-
-      const accessToken = jwt.sign(
-        {
-          sub: usuario.id,
-          email: usuario.email,
-          perfil: usuario.perfil,
-        },
-        process.env.JWT_SECRET as string,
-        { expiresIn: "15m" }
-      );
-
-      const refreshToken = jwt.sign(
-        {
-          sub: usuario.id,
-        },
-        process.env.JWT_REFRESH_SECRET as string,
-        { expiresIn: "7d" }
-      );
-
-      return {
-        accessToken,
-        refreshToken,
-      };
-    } catch {
+    } catch (err) {
       throw new Error("Refresh Token inválido ou expirado");
     }
+
+    const userId = decoded.sub;
+
+    const usuario = await this.userRepo.findOne({
+      where: { id: userId },
+    });
+
+    if (!usuario || !usuario.ativo) {
+      throw new Error("Usuário inválido ou inativo");
+    }
+
+    const accessToken = jwt.sign(
+      {
+        sub: usuario.id,
+        email: usuario.email,
+        perfil: usuario.perfil,
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        sub: usuario.id,
+      },
+      process.env.JWT_REFRESH_SECRET as string,
+      { expiresIn: "7d" }
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 }

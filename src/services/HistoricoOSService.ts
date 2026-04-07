@@ -1,4 +1,4 @@
-import { Repository } from "typeorm";
+import type { DataSource, Repository } from "typeorm";
 import { appDataSource } from "../database/appDataSource.js";
 import { HistoricoOS } from "../entities/HistoricoOS.js";
 import { OrdemServico } from "../entities/OrdemServico.js";
@@ -9,10 +9,10 @@ export class HistoricoOSService {
   private ordemServicoRepo: Repository<OrdemServico>;
   private usuarioRepo: Repository<Usuario>;
 
-  constructor() {
-    this.historicoRepo = appDataSource.getRepository(HistoricoOS);
-    this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
-    this.usuarioRepo = appDataSource.getRepository(Usuario);
+  constructor(dataSource: DataSource = appDataSource) {
+    this.historicoRepo = dataSource.getRepository(HistoricoOS);
+    this.ordemServicoRepo = dataSource.getRepository(OrdemServico);
+    this.usuarioRepo = dataSource.getRepository(Usuario);
   }
 
   async registrarHistorico(
