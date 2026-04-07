@@ -4,6 +4,7 @@ import { usuarioRoutes } from "./src/routes/usuario.routes.js";
 import { equipamentoRoutes } from "./src/routes/equipamento.routes.js";
 import { ordemServicoRoutes } from "./src/routes/ordemServico.routes.js";
 import { authRoutes } from "./src/routes/auth.routes.js";
+import { historicoRouter } from "./src/routes/HistoricoOSroutes.js";
 import { errorMiddleware } from "./src/middleware/errorMiddleware.js";
 
 //libs de segurança e performance
@@ -64,6 +65,7 @@ app.use("/auth", authRoutes);
 app.use("/usuarios", usuarioRoutes);
 app.use("/equipamentos", equipamentoRoutes);
 app.use("/ordens-servico", ordemServicoRoutes);
+app.use("/historico-os", historicoRouter);
 app.get("/teste", (req, res) => {
   res.send("mudou");
 });
