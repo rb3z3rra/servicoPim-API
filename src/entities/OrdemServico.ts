@@ -1,10 +1,12 @@
-import {  Column,  Entity,  JoinColumn,  ManyToOne,  PrimaryGeneratedColumn } from "typeorm";
+import {  Column,  Entity,  JoinColumn,  ManyToOne,  OneToMany,  PrimaryGeneratedColumn } from "typeorm";
 import type { Relation } from "typeorm";
 import { Prioridade } from "../types/os_prioridade.js";
 import { TipoManutencao } from "../types/os_tipoManutencao.js";
 import { StatusOs } from "../types/os_status.js";
 import { Equipamento } from "./Equipamento.js";
 import { Usuario } from "./Usuario.js";
+import { HistoricoOS } from "./HistoricoOS.js";
+
 
 @Entity("ordem_servico")
 export class OrdemServico {
@@ -61,4 +63,7 @@ export class OrdemServico {
 
   @Column({ type: "numeric", nullable: true })
   horas_trabalhadas!: number | null;
+
+  @OneToMany(() => HistoricoOS, (historicoOS) => historicoOS.ordemServico)
+  historicos!: Relation<HistoricoOS[]>;  
 }

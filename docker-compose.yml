@@ -14,6 +14,8 @@ services:
 
   app:
     build: .
+    env_file:
+      - .env
     container_name: servicopim_api
     restart: always
     depends_on:

@@ -24,19 +24,53 @@ export class OrdemServicoController {
 
   async atribuirTecnico(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
-    const ordemServico = await ordemServicoService.atribuirTecnico(id as string, req.body);
-    return res.status(200).json(ordemServico);
+
+    if (!req.user) {
+      throw new Error("Usuário não autenticado");
   }
+
+    const usuarioId = req.user.id;
+
+    const ordemServico = await ordemServicoService.atribuirTecnico(
+      id as string,
+      req.body,
+      usuarioId
+  );
+
+    return res.status(200).json(ordemServico);
+}
 
   async atualizarStatus(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
-    const ordemServico = await ordemServicoService.atualizarStatus(id as string, req.body);
+
+    if (!req.user) {
+      throw new Error("Usuário não autenticado");
+    }
+    const usuarioId = req.user.id;
+
+    const ordemServico = await ordemServicoService.atualizarStatus(
+      id as string,
+      req.body,
+      usuarioId
+    );
+
     return res.status(200).json(ordemServico);
   }
 
   async concluir(req: Request, res: Response): Promise<Response> {
     const { id } = req.params;
-    const ordemServico = await ordemServicoService.concluirOrdemServico(id as string, req.body);
+
+    if (!req.user) {
+       throw new Error("Usuário não autenticado");
+  }
+    const usuarioId = req.user.id;
+
+    const ordemServico = await ordemServicoService.concluirOrdemServico(
+      id as string,
+      req.body,
+      usuarioId
+    );
+
     return res.status(200).json(ordemServico);
   }
 }

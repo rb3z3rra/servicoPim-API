@@ -64,7 +64,6 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
         expect(response.status).toBe(400); 
         expect(response.body.message).toBe("Email ou senha inválidos");
     });
-
     test("POST /auth/refresh - Deve retornar novos tokens se o refreshToken for válido", async () => {
         // Primeiro logamos para pegar um refreshToken válido
         const loginResponse = await request(app)
