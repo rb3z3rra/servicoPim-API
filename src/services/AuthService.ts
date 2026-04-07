@@ -73,4 +73,50 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  async refreshToken(token: string) {
+    try {
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_REFRESH_SECRET as string
+      ) as { sub: string };
+
+      const usuario = await this.userRepo.findOne({
+        where: { id: decoded.sub },
+      });
+
+      if (!usuario || !usuario.ativo) {
+        throw new Error("Usuário inválido ou inativo");
+      }
+
+      const accessToken = jwt.sign(
+        {
+          sub: usuario.id,
+          email: usuario.email,
+          perfil: usuario.perfil,
+        },
+        process.env.JWT_SECRET as string,
+        {
+          expiresIn: "1d",
+        }
+      );
+
+      const refreshToken = jwt.sign(
+        {
+          sub: usuario.id,
+        },
+        process.env.JWT_REFRESH_SECRET as string,
+        {
+          expiresIn: "7d",
+        }
+      );
+
+      return {
+        accessToken,
+        refreshToken,
+      };
+    } catch {
+      throw new Error("Refresh Token inválido ou expirado");
+    }
+  }
 }

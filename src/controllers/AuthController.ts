@@ -9,4 +9,10 @@ export class AuthController {
     const result = await authService.login(req.body);
     return res.status(200).json(result);
   }
+
+  async refresh(req: Request, res: Response): Promise<Response> {
+    const { refreshToken } = req.body;
+    const result = await authService.refreshToken(refreshToken);
+    return res.status(200).json(result);
+  }
 }
