@@ -1,11 +1,11 @@
 import express from "express";
-import { appDataSource } from "./src/database/appDataSource.js";
-import { usuarioRoutes } from "./src/routes/usuario.routes.js";
-import { equipamentoRoutes } from "./src/routes/equipamento.routes.js";
-import { ordemServicoRoutes } from "./src/routes/ordemServico.routes.js";
-import { authRoutes } from "./src/routes/auth.routes.js";
-import { historicoRouter } from "./src/routes/HistoricoOSroutes.js";
-import { errorMiddleware } from "./src/middleware/errorMiddleware.js";
+import { appDataSource } from "./database/appDataSource.js";
+import { usuarioRoutes } from "./routes/usuario.routes.js";
+import { equipamentoRoutes } from "./routes/equipamento.routes.js";
+import { ordemServicoRoutes } from "./routes/ordemServico.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
+import { historicoRouter } from "./routes/HistoricoOSroutes.js";
+import { errorMiddleware } from "./middleware/errorMiddleware.js";
 
 //libs de segurança e performance
 import helmet from "helmet";
