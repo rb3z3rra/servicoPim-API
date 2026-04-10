@@ -4,6 +4,10 @@ import { appDataSource } from "../database/appDataSource.js";
 
 const authService = new AuthService(appDataSource);
 
+
+
+
+
 export class AuthController {
   async login(req: Request, res: Response): Promise<Response> {
     const result = await authService.login(req.body);

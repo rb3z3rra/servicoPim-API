@@ -21,4 +21,4 @@ RUN npm install --only=production
 COPY --from=builder /app/dist ./dist
 EXPOSE 9090
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/src/server.js"]

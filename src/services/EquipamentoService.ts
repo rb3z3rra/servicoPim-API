@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import type { Repository, DataSource } from "typeorm";
 import { Equipamento } from "../entities/Equipamento.js";
 
@@ -18,7 +19,7 @@ export class EquipamentoService {
     });
 
     if (!equipamento) {
-      throw new Error("Equipamento não encontrado");
+      throw new AppError("Equipamento não encontrado");
     }
 
     return equipamento;
@@ -30,7 +31,7 @@ export class EquipamentoService {
     });
 
     if (!equipamento) {
-      throw new Error("Equipamento não encontrado");
+      throw new AppError("Equipamento não encontrado");
     }
 
     return equipamento;
@@ -42,7 +43,7 @@ export class EquipamentoService {
     });
 
     if (codigoExistente) {
-      throw new Error("Código do equipamento já cadastrado");
+      throw new AppError("Código do equipamento já cadastrado");
     }
 
     const novoEquipamento = this.equipamentoRepo.create(data);
@@ -64,7 +65,7 @@ export class EquipamentoService {
       });
 
       if (codigoExistente) {
-        throw new Error("Código do equipamento já cadastrado");
+        throw new AppError("Código do equipamento já cadastrado");
       }
     }
 

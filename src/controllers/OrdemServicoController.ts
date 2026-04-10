@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import type { Request, Response } from "express";
 import { OrdemServicoService } from "../services/OrdemServicoService.js";
 import { appDataSource } from "../database/appDataSource.js";
@@ -26,7 +27,7 @@ export class OrdemServicoController {
     const { id } = req.params;
 
     if (!req.user) {
-      throw new Error("Usuário não autenticado");
+      throw new AppError("Usuário não autenticado");
   }
 
     const usuarioId = req.user.id;
@@ -44,7 +45,7 @@ export class OrdemServicoController {
     const { id } = req.params;
 
     if (!req.user) {
-      throw new Error("Usuário não autenticado");
+      throw new AppError("Usuário não autenticado");
     }
     const usuarioId = req.user.id;
 
@@ -61,7 +62,7 @@ export class OrdemServicoController {
     const { id } = req.params;
 
     if (!req.user) {
-       throw new Error("Usuário não autenticado");
+       throw new AppError("Usuário não autenticado");
   }
     const usuarioId = req.user.id;
 

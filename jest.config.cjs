@@ -2,8 +2,16 @@
 process.env.NODE_ENV = "test";
 
 module.exports = {
-  preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
+  extensionsToTreatAsEsm: [".ts", ".tsx", ".mts"],
+  transform: {
+    "^.+\\.m?tsx?$": [
+      "ts-jest",
+      {
+        useESM: true,
+      },
+    ],
+  },
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },

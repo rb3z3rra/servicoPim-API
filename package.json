@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch server.ts",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
   },

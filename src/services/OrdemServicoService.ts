@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import type { DataSource, Repository } from "typeorm";
 import { OrdemServico } from "../entities/OrdemServico.js";
 import { Equipamento } from "../entities/Equipamento.js";
@@ -58,7 +59,7 @@ export class OrdemServicoService {
     });
 
     if (!ordemServico) {
-      throw new Error("Ordem de serviço não encontrada");
+      throw new AppError("Ordem de serviço não encontrada");
     }
 
     return ordemServico;
@@ -70,7 +71,7 @@ export class OrdemServicoService {
     });
 
     if (!equipamento) {
-      throw new Error("Equipamento não encontrado");
+      throw new AppError("Equipamento não encontrado");
     }
 
     const solicitante = await this.usuarioRepo.findOne({
@@ -78,7 +79,7 @@ export class OrdemServicoService {
     });
 
     if (!solicitante) {
-      throw new Error("Solicitante não encontrado");
+      throw new AppError("Solicitante não encontrado");
     }
 
     const numero = await this.gerarNumeroOS();
@@ -120,11 +121,11 @@ export class OrdemServicoService {
     });
 
     if (!tecnico) {
-      throw new Error("Técnico não encontrado");
+      throw new AppError("Técnico não encontrado");
     }
 
     if (tecnico.perfil !== Perfil.TECNICO) {
-      throw new Error("O usuário informado não é um técnico");
+      throw new AppError("O usuário informado não é um técnico");
     }
 
     const statusAnterior = ordemServico.status;
@@ -157,11 +158,11 @@ export class OrdemServicoService {
     const ordemServico = await this.getById(id);
 
     if (ordemServico.status === StatusOs.CONCLUIDA) {
-      throw new Error("Não é possível alterar uma OS concluída");
+      throw new AppError("Não é possível alterar uma OS concluída");
     }
 
     if (ordemServico.status === StatusOs.CANCELADA) {
-      throw new Error("Não é possível alterar uma OS cancelada");
+      throw new AppError("Não é possível alterar uma OS cancelada");
     }
 
     const statusAnterior = ordemServico.status;
@@ -193,18 +194,18 @@ export class OrdemServicoService {
     const ordemServico = await this.getById(id);
 
     if (!ordemServico.tecnico) {
-      throw new Error("Não é possível concluir uma OS sem técnico atribuído");
+      throw new AppError("Não é possível concluir uma OS sem técnico atribuído");
     }
 
     if (!data.descricao_servico) {
-      throw new Error("Descrição do serviço é obrigatória");
+      throw new AppError("Descrição do serviço é obrigatória");
     }
 
     if (
       data.horas_trabalhadas === undefined ||
       data.horas_trabalhadas === null
     ) {
-      throw new Error("Horas trabalhadas é obrigatório");
+      throw new AppError("Horas trabalhadas é obrigatório");
     }
 
     const statusAnterior = ordemServico.status;

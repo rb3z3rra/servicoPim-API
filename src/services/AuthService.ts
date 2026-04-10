@@ -3,6 +3,7 @@ import { Usuario } from "../entities/Usuario.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { LoginDTO } from "../types/auth_type.js";
+import { AppError } from "../errors/AppError.js";
 
 export class AuthService {
   private userRepo: Repository<Usuario>;
@@ -27,17 +28,17 @@ export class AuthService {
     });
 
     if (!usuario) {
-      throw new Error("Email ou senha inválidos");
+      throw new AppError("Email ou senha inválidos", 400);
     }
 
     if (!usuario.ativo) {
-      throw new Error("Usuário inativo");
+      throw new AppError("Usuário inativo", 403);
     }
 
     const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha_hash);
 
     if (!senhaCorreta) {
-      throw new Error("Email ou senha inválidos");
+      throw new AppError("Email ou senha inválidos", 400);
     }
 
     const accessToken = jwt.sign(
@@ -80,7 +81,7 @@ export class AuthService {
         process.env.JWT_REFRESH_SECRET as string
       ) as { sub: string };
     } catch {
-      throw new Error("Refresh Token inválido ou expirado");
+      throw new AppError("Refresh Token inválido ou expirado", 400);
     }
 
     const userId = decoded.sub;
@@ -90,7 +91,7 @@ export class AuthService {
     });
 
     if (!usuario || !usuario.ativo) {
-      throw new Error("Usuário inválido ou inativo");
+      throw new AppError("Usuário inválido ou inativo", 401);
     }
 
     const accessToken = jwt.sign(
