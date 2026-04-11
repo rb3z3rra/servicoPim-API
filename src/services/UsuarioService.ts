@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import type { Repository } from "typeorm";
 import { Usuario } from "../entities/Usuario.js";
 import type { DataSource } from "typeorm";
@@ -18,7 +19,7 @@ export class UsuarioService {
     const user = await this.userRepo.findOne({ where: { id } });
 
     if (!user) {
-      throw new Error("Usuário não encontrado");
+      throw new AppError("Usuário não encontrado");
     }
 
     return user;
@@ -27,11 +28,11 @@ export class UsuarioService {
   async getByEmail(email: string): Promise<Usuario> {
     const user = await this.userRepo.findOne({
       where: { email },
-      select: ["id", "nome", "email", "senha_hash", "perfil", "setor", "ativo", "created_at"],
+      select: ["id", "nome", "email", "perfil", "setor", "ativo", "created_at"],
     });
 
     if (!user) {
-      throw new Error("Usuário não encontrado");
+      throw new AppError("Usuário não encontrado");
     }
 
     return user;
@@ -43,7 +44,7 @@ export class UsuarioService {
     });
 
     if (usuarioExistente) {
-      throw new Error("Email já cadastrado");
+      throw new AppError("Email já cadastrado");
     }
 
     data.senha_hash = await bcrypt.hash(data.senha_hash, 8);
@@ -64,7 +65,7 @@ export class UsuarioService {
       });
 
       if (emailExistente) {
-        throw new Error("Email já cadastrado");
+        throw new AppError("Email já cadastrado");
       }
     }
 
@@ -85,3 +86,5 @@ export class UsuarioService {
     await this.userRepo.remove(user);
   }
 }
+
+ 

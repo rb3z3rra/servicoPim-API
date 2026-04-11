@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import type { DataSource, Repository } from "typeorm";
 import { appDataSource } from "../database/appDataSource.js";
 import { HistoricoOS } from "../entities/HistoricoOS.js";
@@ -24,12 +25,12 @@ export class HistoricoOSService {
   ) {
     const ordemServico = await this.ordemServicoRepo.findOne({ where: { id: osId } });
     if (!ordemServico) {
-      throw new Error("Ordem de serviço não encontrada");
+      throw new AppError("Ordem de serviço não encontrada");
     }
 
     const usuario = await this.usuarioRepo.findOne({ where: { id: usuarioId } });
     if (!usuario) {
-      throw new Error("Usuário não encontrado");
+      throw new AppError("Usuário não encontrado");
     }
 
     const historico = this.historicoRepo.create({
@@ -57,7 +58,7 @@ export class HistoricoOSService {
     });
 
     if (!historico) {
-      throw new Error("Histórico não encontrado");
+      throw new AppError("Histórico não encontrado");
     }
 
     return historico;

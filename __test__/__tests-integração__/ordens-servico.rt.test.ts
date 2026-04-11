@@ -1,5 +1,5 @@
 import request from "supertest";
-import { app } from "../../server.js";
+import { app } from "../../src/server.js";
 import { appDataSource } from "../../src/database/appDataSource.js";
 import { Usuario } from "../../src/entities/Usuario.js";
 import { Equipamento } from "../../src/entities/Equipamento.js";
