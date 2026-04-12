@@ -9,7 +9,9 @@ import { Perfil } from "../../src/types/usr_perfil.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
 
-let accessToken: string;
+let supervisorToken: string;
+let solicitanteToken: string;
+let tecnicoToken: string;
 let solicitanteId: string;
 let tecnicoId: string;
 let equipamentoId: number;
@@ -33,10 +35,19 @@ async function criarUsuario(
     return user.id;
 }
 
+async function login(email: string): Promise<string> {
+    const res = await request(app)
+        .post("/auth/login")
+        .send({ email, senha: "senha123" });
+
+    return res.body.accessToken;
+}
+
 describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () => {
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
 
         // Limpar dados de teste anteriores
@@ -56,22 +67,25 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
             "solicitante-hist-rt@teste.com",
             Perfil.SOLICITANTE
         );
+        await criarUsuario(
+            "Supervisor Hist",
+            "supervisor-hist-rt@teste.com",
+            Perfil.SUPERVISOR
+        );
         tecnicoId = await criarUsuario(
             "Tecnico Hist",
             "tecnico-hist-rt@teste.com",
             Perfil.TECNICO
         );
 
-        // Login para obter token
-        const loginRes = await request(app)
-            .post("/auth/login")
-            .send({ email: "solicitante-hist-rt@teste.com", senha: "senha123" });
-        accessToken = loginRes.body.accessToken;
+        solicitanteToken = await login("solicitante-hist-rt@teste.com");
+        supervisorToken = await login("supervisor-hist-rt@teste.com");
+        tecnicoToken = await login("tecnico-hist-rt@teste.com");
 
         // Criar equipamento de teste
         const equipRes = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-HIST-001",
                 nome: "Equipamento para Historico",
@@ -83,10 +97,9 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
         // Criar OS (gera histórico de criação automaticamente)
         const osRes = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "CORRETIVA",
                 prioridade: "ALTA",
                 descricao_falha: "Falha para teste de histórico",
@@ -96,13 +109,13 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
         // Atribuir técnico (gera mais um registro de histórico)
         await request(app)
             .patch(`/ordens-servico/${osId}/atribuir-tecnico`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({ tecnicoId });
 
         // Atualizar status (gera mais um registro de histórico)
         await request(app)
             .patch(`/ordens-servico/${osId}/status`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
             .send({ status: "AGUARDANDO_PECA" });
     });
 
@@ -125,7 +138,7 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
     test("GET /historico-os - Deve listar todos os históricos", async () => {
         const response = await request(app)
             .get("/historico-os")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
@@ -136,7 +149,7 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
     test("GET /historico-os/ordem-servico/:osId - Deve listar históricos da OS", async () => {
         const response = await request(app)
             .get(`/historico-os/ordem-servico/${osId}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
@@ -159,13 +172,13 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
     test("GET /historico-os/:id - Deve buscar histórico por ID", async () => {
         const listRes = await request(app)
             .get(`/historico-os/ordem-servico/${osId}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         const historicoId = listRes.body[0].id;
 
         const response = await request(app)
             .get(`/historico-os/${historicoId}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(historicoId);
@@ -177,7 +190,7 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
     test("GET /historico-os/:id - Deve falhar com ID inexistente", async () => {
         const response = await request(app)
             .get("/historico-os/00000000-0000-0000-0000-000000000000")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Histórico não encontrado");
@@ -187,7 +200,7 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
     test("GET /historico-os/usuario/:usuarioId - Deve listar históricos do usuário", async () => {
         const response = await request(app)
             .get(`/historico-os/usuario/${solicitanteId}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);

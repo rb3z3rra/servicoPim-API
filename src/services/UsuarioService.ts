@@ -4,6 +4,17 @@ import { Usuario } from "../entities/Usuario.js";
 import type { DataSource } from "typeorm";
 import bcrypt from "bcryptjs";
 
+type UserInput = {
+  nome: string;
+  email: string;
+  senha: string;
+  perfil: Usuario["perfil"];
+  setor?: string | null;
+  ativo?: boolean;
+};
+
+type UserUpdateInput = Partial<UserInput>;
+
 export class UsuarioService {
   private userRepo: Repository<Usuario>;
 
@@ -38,7 +49,7 @@ export class UsuarioService {
     return user;
   }
 
-  async createUser(data: Usuario): Promise<Usuario> {
+  async createUser(data: UserInput): Promise<Usuario> {
     const usuarioExistente = await this.userRepo.findOne({
       where: { email: data.email },
     });
@@ -47,16 +58,21 @@ export class UsuarioService {
       throw new AppError("Email já cadastrado");
     }
 
-    data.senha_hash = await bcrypt.hash(data.senha_hash, 8);
-
-    const novoUsuario = this.userRepo.create(data);
+    const novoUsuario = this.userRepo.create({
+      nome: data.nome,
+      email: data.email,
+      senha_hash: await bcrypt.hash(data.senha, 8),
+      perfil: data.perfil,
+      setor: data.setor ?? null,
+      ativo: data.ativo ?? true,
+    });
 
     await this.userRepo.save(novoUsuario);
 
     return novoUsuario;
   }
 
-  async updateUser(id: string, data: Partial<Usuario>): Promise<Usuario> {
+  async updateUser(id: string, data: UserUpdateInput): Promise<Usuario> {
     const user = await this.getById(id);
 
     if (data.email && data.email !== user.email) {
@@ -69,11 +85,17 @@ export class UsuarioService {
       }
     }
 
-    if (data.senha_hash) {
-      data.senha_hash = await bcrypt.hash(data.senha_hash, 8);
+    if (data.senha) {
+      user.senha_hash = await bcrypt.hash(data.senha, 8);
     }
 
-    Object.assign(user, data);
+    Object.assign(user, {
+      nome: data.nome ?? user.nome,
+      email: data.email ?? user.email,
+      perfil: data.perfil ?? user.perfil,
+      setor: data.setor ?? user.setor,
+      ativo: data.ativo ?? user.ativo,
+    });
 
     await this.userRepo.save(user);
 
@@ -82,8 +104,8 @@ export class UsuarioService {
 
   async deleteUser(id: string): Promise<void> {
     const user = await this.getById(id);
-
-    await this.userRepo.remove(user);
+    user.ativo = false;
+    await this.userRepo.save(user);
   }
 }
 

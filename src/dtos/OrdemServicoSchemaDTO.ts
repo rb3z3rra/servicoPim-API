@@ -5,7 +5,6 @@ import { StatusOs } from "../types/os_status.js";
 
 export const createOrdemServicoSchemaDTO = z.object({
   equipamentoId: z.number().int().positive(),
-  solicitanteId: z.uuid(),
   tipo_manutencao: z.enum(TipoManutencao),
   prioridade: z.enum(Prioridade),
   descricao_falha: z.string().trim().min(5).max(1000),

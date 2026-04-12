@@ -6,53 +6,48 @@
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
 </p>
 
-# 🏭 Serviço PIM - API
+# Serviço PIM - API
 
-> API RESTful para um sistema web focado na abertura, acompanhamento e encerramento de Ordens de Serviço (O.S) de manutenção industrial.
+API REST para abertura, acompanhamento e encerramento de ordens de serviço de manutenção industrial.
 
-## 📋 Sobre o Projeto
-O **Serviço PIM** foi desenhado com foco no setor industrial, fornecendo a infraestrutura de Backend necessária para que técnicos, solicitantes e supervisores gerenciem todo o ciclo de vida de equipamentos e tarefas de manutenção de forma segura, rápida e distribuída.
+## Sobre o Projeto
+O backend foi estruturado em Node.js, TypeScript, Express e PostgreSQL com TypeORM. A API usa JWT para autenticação, Zod para validação de entrada e histórico de mudanças para auditoria de ordens de serviço.
 
-Esta API serve como o coração de todo o ecossistema, garantindo proteção das regras de negócio através de validações baseadas em esquemas (Zod) e autenticação de tráfego com Web Tokens.
+Principais melhorias desta versão:
+- autenticação unificada com `JWT_ACCESS_SECRET` e `JWT_REFRESH_SECRET`
+- inicialização da aplicação separada de bootstrap HTTP
+- migrations versionadas no lugar de `synchronize`
+- transações nas operações críticas de ordem de serviço
+- desativação lógica de usuários em vez de exclusão física
+- suíte integrada preparada para subir Postgres isolado via Docker
 
----
+## Scripts
+- `npm run dev`: sobe a API em modo desenvolvimento
+- `npm run build`: compila o projeto
+- `npm run db:migrate`: aplica migrations no banco configurado no ambiente atual
+- `npm test`: roda a suíte unitária
+- `npm run test:integration:docker`: sobe Postgres de teste, aplica migrations e executa a suíte integrada
 
-## 🚀 Principais Features
-- **Gestão de Identidade:** Autenticação via JWT com dupla camada (`Access Token` via Bearer auth e `Refresh Token` rotativo) em rotas privadas.
-- **Hierarquia e Perfis:** Acesso multi-camada controlado (`SOLICITANTE`, `TECNICO`, `SUPERVISOR`).
-- **Ciclo de O.S:** Rotas para abertura, triagem, delegação e fechamento de ordens de serviço.
-- **Auditoria de Falhas:** Tratamento global e blindado de exceções HTTP padronizadas via injetores de controle (AppError).
-- **Validação de Ponta-a-Ponta:** Entradas do usuário checadas no nível de rede usando a engine do Zod para evitar gargalos no banco.
+## Configuração
+Variáveis principais:
+- `PORT`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASS`
+- `DB_NAME`
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
+- `DB_LOGGING`
 
----
+Exemplo completo em [`.env.example`](./.env.example).
 
-## 🛠️ Stack Tecnológico
-A infraestrutura foi construída sobre fundações corporativas modernas:
+## Fluxo de Usuários
+- `POST /usuarios` recebe `senha`, não `senha_hash`
+- `DELETE /usuarios/:id` desativa o usuário (`ativo=false`) para preservar auditoria
+- login e refresh rejeitam usuários inativos
 
-* **Engine:** [Node.js](https://nodejs.org/) (v20 LTS)
-* **Linguagem Principal:** [TypeScript](https://www.typescriptlang.org/)
-* **Microsserviço Web:** [Express.js](https://expressjs.com/) (v5)
-* **Banco de Dados:** [PostgreSQL](https://www.postgresql.org/) (v16) via [TypeORM](https://typeorm.io/)
-* **Segurança e Criptografia:** BcryptJS & JSON Web Tokens (JWT)
-* **Validação de Inputs:** Zod
-* **Deploy e Orquestração:** Docker & Docker Compose (Multi-stage builds)
-
----
-
-## ⚙️ Instalação e Execução
-Cobrimos em detalhes todos os passos necessários para você rodar o sistema localmente (em Modo de Desenvolvimento) ou para a subida em Servidores de Produção na nuvem num guia separado.
-
-👉 **[Acesse o manual de Instalação no SETUP.md](./SETUP.md)**
-
----
-
-## 💻 Contribuindo
-Este projeto segue padrões rigorosos para a equipe:
-* Suporte oficial para **Convencional Commits** nas mensagens de versionamento.
-* Fluxo de trabalho baseado em ramificações (Feature branches > Pull Request > Main).
-
-**Autores e Mantenedores do Ecossistema PIM:**
-- Patrese Emiron Barbosa de Souza
-- Rodrigo Bezerra da Silva
-- Daniel Valdivino Silva
-
+## Observações
+- o healthcheck da aplicação está em `GET /health`
+- o PgAdmin do `docker-compose.yml` está exposto em `http://localhost:8080`
+- instruções detalhadas de setup e execução estão em [SETUP.md](./SETUP.md)

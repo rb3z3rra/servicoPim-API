@@ -1,5 +1,5 @@
 import { AppError } from '../errors/AppError.js';
-import type { DataSource, Repository } from "typeorm";
+import type { DataSource, EntityManager, Repository } from "typeorm";
 import { appDataSource } from "../database/appDataSource.js";
 import { HistoricoOS } from "../entities/HistoricoOS.js";
 import { OrdemServico } from "../entities/OrdemServico.js";
@@ -21,19 +21,24 @@ export class HistoricoOSService {
     usuarioId: string,
     statusAnterior: string | null,
     statusNovo: string,
-    observacao?: string
+    observacao?: string,
+    manager?: EntityManager
   ) {
-    const ordemServico = await this.ordemServicoRepo.findOne({ where: { id: osId } });
+    const historicoRepo = manager?.getRepository(HistoricoOS) ?? this.historicoRepo;
+    const ordemServicoRepo = manager?.getRepository(OrdemServico) ?? this.ordemServicoRepo;
+    const usuarioRepo = manager?.getRepository(Usuario) ?? this.usuarioRepo;
+
+    const ordemServico = await ordemServicoRepo.findOne({ where: { id: osId } });
     if (!ordemServico) {
       throw new AppError("Ordem de serviço não encontrada");
     }
 
-    const usuario = await this.usuarioRepo.findOne({ where: { id: usuarioId } });
+    const usuario = await usuarioRepo.findOne({ where: { id: usuarioId } });
     if (!usuario) {
       throw new AppError("Usuário não encontrado");
     }
 
-    const historico = this.historicoRepo.create({
+    const historico = historicoRepo.create({
       osId,
       usuarioId,
       statusAnterior,
@@ -41,7 +46,7 @@ export class HistoricoOSService {
       observacao: observacao ?? null,
     });
 
-    return await this.historicoRepo.save(historico);
+    return await historicoRepo.save(historico);
   }
 
   async getAll() {

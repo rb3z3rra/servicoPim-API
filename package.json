@@ -6,7 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
+    "start": "node dist/src/server.js",
+    "db:migrate": "tsx src/scripts/runMigrations.ts",
+    "test": "npm run test:unit",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand __test__/__tests-unitarios__",
+    "test:integration": "npm run test:integration:docker",
+    "test:integration:jest": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.integration.config.cjs --runInBand",
+    "test:integration:docker": "bash scripts/test-integration.sh"
   },
   "keywords": [],
   "author": "",

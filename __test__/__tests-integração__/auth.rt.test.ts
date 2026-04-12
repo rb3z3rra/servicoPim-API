@@ -11,6 +11,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
     });
 

@@ -74,7 +74,7 @@ describe("Testes Unitários - ensureAuth", () => {
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     const erro = (next as jest.Mock).mock.calls[0]![0] as AppError;
     expect(erro.statusCode).toBe(401);
-    expect(erro.message).toBe("Token invalido");
+    expect(erro.message).toBe("Token invalido ou expirado");
   });
 
   test("Deve chamar next(AppError 401) quando o token está expirado", () => {
@@ -91,7 +91,7 @@ describe("Testes Unitários - ensureAuth", () => {
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     const erro = (next as jest.Mock).mock.calls[0]![0] as AppError;
     expect(erro.statusCode).toBe(401);
-    expect(erro.message).toBe("Token invalido");
+    expect(erro.message).toBe("Token invalido ou expirado");
   });
 
   test("Deve chamar next(AppError 401) quando o token foi assinado com secret diferente", () => {
@@ -108,7 +108,7 @@ describe("Testes Unitários - ensureAuth", () => {
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     const erro = (next as jest.Mock).mock.calls[0]![0] as AppError;
     expect(erro.statusCode).toBe(401);
-    expect(erro.message).toBe("Token invalido");
+    expect(erro.message).toBe("Token invalido ou expirado");
   });
 
   test("Deve popular req.auth e chamar next() quando o token é válido", () => {

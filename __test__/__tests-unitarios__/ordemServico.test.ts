@@ -1,469 +1,589 @@
-import { jest } from '@jest/globals';
-import { OrdemServicoService } from "../../src/services/OrdemServicoService.js";
-import { OrdemServico } from "../../src/entities/OrdemServico.js";
+import { jest } from "@jest/globals";
 import { Equipamento } from "../../src/entities/Equipamento.js";
+import { OrdemServico } from "../../src/entities/OrdemServico.js";
 import { Usuario } from "../../src/entities/Usuario.js";
+import { OrdemServicoService } from "../../src/services/OrdemServicoService.js";
 import { StatusOs } from "../../src/types/os_status.js";
 import { Prioridade } from "../../src/types/os_prioridade.js";
 import { TipoManutencao } from "../../src/types/os_tipoManutencao.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
-
 import { HistoricoOSService } from "../../src/services/HistoricoOSService.js";
 
+const ordemRepo = {
+  findOne: jest.fn(),
+  find: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  manager: {
+    transaction: jest.fn(),
+  },
+};
+
+const equipamentoRepo = {
+  findOne: jest.fn(),
+};
+
+const usuarioRepo = {
+  findOne: jest.fn(),
+};
+
+const mockManager = {
+  getRepository: jest.fn((entity) => {
+    if (entity === OrdemServico) {
+      return ordemRepo;
+    }
+
+    if (entity === Equipamento) {
+      return equipamentoRepo;
+    }
+
+    if (entity === Usuario) {
+      return usuarioRepo;
+    }
+
+    return undefined;
+  }),
+  query: jest.fn(),
+};
+
+const mockDataSource = {
+  getRepository: jest.fn((entity) => {
+    if (entity === OrdemServico) {
+      return ordemRepo;
+    }
+
+    if (entity === Equipamento) {
+      return equipamentoRepo;
+    }
+
+    if (entity === Usuario) {
+      return usuarioRepo;
+    }
+
+    return undefined;
+  }),
+};
+
+const historicoService = {
+  registrarHistorico: jest.fn().mockResolvedValue({}),
+};
+
 let ordemServicoService: OrdemServicoService;
-let mockDataSource: any;
-let mockHistoricoService: any;
 
 beforeAll(() => {
-    mockDataSource = {
-        getRepository: jest.fn().mockReturnValue({
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            find: jest.fn(),
-            count: jest.fn()
-        })
-    };
-
-    mockHistoricoService = {
-        registrarHistorico: jest.fn().mockResolvedValue({})
-    };
-
-    ordemServicoService = new OrdemServicoService(mockDataSource, mockHistoricoService as any);
+  ordemRepo.manager.transaction.mockImplementation(async (callback) => callback(mockManager));
+  ordemServicoService = new OrdemServicoService(
+    mockDataSource as never,
+    historicoService as never
+  );
 });
 
 beforeEach(() => {
-    jest.clearAllMocks();
+  jest.clearAllMocks();
+  ordemRepo.manager.transaction.mockImplementation(async (callback) => callback(mockManager));
 });
 
-describe("Testes de Ordens de Serviço", () => {
+describe("OrdemServicoService", () => {
+  test("usa HistoricoOSService padrão quando não é injetado", () => {
+    const service = new OrdemServicoService(mockDataSource as never);
 
-    describe("CREATE - Criar ordens de serviço", () => {
-        test("Deve criar uma nova ordem de serviço com sucesso", async () => {
-            const createData = {
-                equipamentoId: 1,
-                solicitanteId: "user-uuid-1",
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                descricao_falha: "Equipamento não liga"
-            };
+    expect(service).toBeInstanceOf(OrdemServicoService);
+  });
 
-            const mockEquipamento = { id: 1, nome: "Notebook Dell", codigo: "NOTE001" };
-            const mockSolicitante = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com" };
+  test("lista ordens de serviço", async () => {
+    ordemRepo.find.mockResolvedValue([{ id: "os-1" }]);
 
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockEquipamento) // equipamento
-                .mockResolvedValueOnce(mockSolicitante); // solicitante
-            mockDataSource.getRepository().count.mockResolvedValue(0);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = "os-uuid-1";
-                entity.abertura_em = new Date();
-                return entity;
-            });
+    const result = await ordemServicoService.getAll();
 
-            // Mock para getById no final
-            const mockOSCompleta = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: mockEquipamento,
-                solicitante: mockSolicitante,
-                tecnico: null,
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                status: StatusOs.ABERTA,
-                descricao_falha: "Equipamento não liga",
-                abertura_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSCompleta);
+    expect(result).toEqual([{ id: "os-1" }]);
+  });
 
-            const result = await ordemServicoService.createOrdemServico(createData);
+  test("falha ao buscar ordem inexistente por id", async () => {
+    ordemRepo.findOne.mockResolvedValue(null);
 
-            expect(result).toHaveProperty("id");
-            expect(result.numero).toBe("OS-0001");
-            expect(result.status).toBe(StatusOs.ABERTA);
-            expect(result.tipo_manutencao).toBe(TipoManutencao.CORRETIVA);
-            expect(result.prioridade).toBe(Prioridade.ALTA);
-        });
+    await expect(ordemServicoService.getById("os-404")).rejects.toThrow(
+      "Ordem de serviço não encontrada"
+    );
+  });
 
-        test("Deve lançar erro ao criar OS com equipamento inexistente", async () => {
-            const createData = {
-                equipamentoId: 999,
-                solicitanteId: "user-uuid-1",
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                descricao_falha: "Equipamento não liga"
-            };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(null); // equipamento não encontrado
-
-            await expect(ordemServicoService.createOrdemServico(createData)).rejects.toThrow("Equipamento não encontrado");
-        });
-
-        test("Deve lançar erro ao criar OS com solicitante inexistente", async () => {
-            const createData = {
-                equipamentoId: 1,
-                solicitanteId: "invalid-uuid",
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                descricao_falha: "Equipamento não liga"
-            };
-
-            const mockEquipamento = { id: 1, nome: "Notebook Dell", codigo: "NOTE001" };
-
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockEquipamento) // equipamento encontrado
-                .mockResolvedValueOnce(null); // solicitante não encontrado
-
-            await expect(ordemServicoService.createOrdemServico(createData)).rejects.toThrow("Solicitante não encontrado");
-        });
+  test("cria ordem de serviço com número baseado em sequence", async () => {
+    equipamentoRepo.findOne.mockResolvedValue({
+      id: 1,
+      codigo: "EQ-1",
+      nome: "Servidor",
+      ativo: true,
+    });
+    usuarioRepo.findOne.mockResolvedValue({
+      id: "sol-1",
+      nome: "Solicitante",
+      perfil: Perfil.SOLICITANTE,
+      ativo: true,
+    });
+    mockManager.query.mockResolvedValue([{ value: "1" }]);
+    ordemRepo.create.mockImplementation((data) => ({ ...data }));
+    ordemRepo.save.mockImplementation(async (data) => ({
+      id: "os-1",
+      abertura_em: new Date(),
+      ...data,
+    }));
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      numero: "OS-0001",
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+      tecnico: null,
+      status: StatusOs.ABERTA,
     });
 
-    describe("READ - Listar ordens de serviço", () => {
-        test("Deve listar todas as ordens de serviço", async () => {
-            const mockOSList = [
-                {
-                    id: "os-uuid-1",
-                    numero: "OS-0001",
-                    equipamento: { id: 1, nome: "Notebook Dell" },
-                    solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                    tecnico: null,
-                    status: StatusOs.ABERTA,
-                    abertura_em: new Date()
-                },
-                {
-                    id: "os-uuid-2",
-                    numero: "OS-0002",
-                    equipamento: { id: 2, nome: "Mouse" },
-                    solicitante: { id: "user-uuid-2", nome: "Maria Santos" },
-                    tecnico: { id: "user-uuid-3", nome: "Pedro Costa" },
-                    status: StatusOs.EM_ANDAMENTO,
-                    abertura_em: new Date()
-                }
-            ];
-
-            mockDataSource.getRepository().find.mockResolvedValue(mockOSList);
-
-            const allOS = await ordemServicoService.getAll();
-
-            expect(allOS).toHaveLength(2);
-            expect(allOS[0]).toMatchObject({
-                id: "os-uuid-1",
-                numero: "OS-0001"
-            });
-        });
-
-        test("Deve retornar array vazio se não houver ordens de serviço", async () => {
-            mockDataSource.getRepository().find.mockResolvedValue([]);
-
-            const allOS = await ordemServicoService.getAll();
-
-            expect(allOS).toHaveLength(0);
-            expect(allOS).toEqual([]);
-        });
-
-        test("Deve buscar ordem de serviço por ID existente", async () => {
-            const mockOS = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: { id: 1, nome: "Notebook Dell" },
-                solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                tecnico: null,
-                status: StatusOs.ABERTA,
-                abertura_em: new Date()
-            };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOS);
-
-            const os = await ordemServicoService.getById("os-uuid-1");
-
-            expect(os).toBeDefined();
-            expect(os.id).toBe("os-uuid-1");
-            expect(os.numero).toBe("OS-0001");
-        });
-
-        test("Deve lançar erro ao buscar ID inexistente", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-
-            await expect(ordemServicoService.getById("invalid-uuid")).rejects.toThrow("Ordem de serviço não encontrada");
-        });
+    const result = await ordemServicoService.createOrdemServico({
+      equipamentoId: 1,
+      solicitanteId: "sol-1",
+      tipo_manutencao: TipoManutencao.CORRETIVA,
+      prioridade: Prioridade.ALTA,
+      descricao_falha: "Parou de responder",
     });
 
-    describe("UPDATE - Atualizar ordens de serviço", () => {
-        test("Deve atribuir técnico a ordem de serviço", async () => {
-            const mockOS = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: { id: 1, nome: "Notebook Dell" },
-                solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                tecnico: null,
-                status: StatusOs.ABERTA,
-                abertura_em: new Date()
-            };
-            const mockTecnico = { id: "user-uuid-3", nome: "Pedro Costa", perfil: Perfil.TECNICO };
+    expect(mockManager.query).toHaveBeenCalledWith(
+      `SELECT nextval('ordem_servico_numero_seq')::bigint AS value`
+    );
+    expect(result.numero).toBe("OS-0001");
+    expect(historicoService.registrarHistorico).toHaveBeenCalled();
+  });
 
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockOS) // getById
-                .mockResolvedValueOnce(mockTecnico); // tecnico
-            mockDataSource.getRepository().save.mockResolvedValue(mockOS);
+  test("falha ao criar OS com equipamento inativo ou inexistente", async () => {
+    equipamentoRepo.findOne.mockResolvedValue(null);
 
-            const updatedOS = {
-                ...mockOS,
-                tecnico: mockTecnico,
-                status: StatusOs.EM_ANDAMENTO,
-                inicio_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(updatedOS);
+    await expect(
+      ordemServicoService.createOrdemServico({
+        equipamentoId: 999,
+        solicitanteId: "sol-1",
+        tipo_manutencao: TipoManutencao.CORRETIVA,
+        prioridade: Prioridade.ALTA,
+        descricao_falha: "Falha",
+      })
+    ).rejects.toThrow("Equipamento não encontrado");
+  });
 
-            const result = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" }, "user-uuid-1");
+  test("falha ao criar OS com solicitante inexistente ou inativo", async () => {
+    equipamentoRepo.findOne.mockResolvedValue({
+      id: 1,
+      codigo: "EQ-1",
+      nome: "Servidor",
+      ativo: true,
+    });
+    usuarioRepo.findOne.mockResolvedValue(null);
 
-            expect(result.status).toBe(StatusOs.EM_ANDAMENTO);
-            expect(result.tecnico).toEqual(mockTecnico);
-            expect(result.inicio_em).toBeDefined();
-        });
+    await expect(
+      ordemServicoService.createOrdemServico({
+        equipamentoId: 1,
+        solicitanteId: "sol-404",
+        tipo_manutencao: TipoManutencao.CORRETIVA,
+        prioridade: Prioridade.ALTA,
+        descricao_falha: "Falha",
+      })
+    ).rejects.toThrow("Solicitante não encontrado");
+  });
 
-        test("Deve lançar erro ao atribuir técnico inexistente", async () => {
-            const mockOS = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: { id: 1, nome: "Notebook Dell" },
-                solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                tecnico: null,
-                status: StatusOs.ABERTA,
-                abertura_em: new Date()
-            };
+  test("atribui técnico e muda status para em andamento", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.ABERTA,
+        tecnico: null,
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1", nome: "Tecnico" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+      });
+    usuarioRepo.findOne.mockResolvedValue({
+      id: "tec-1",
+      nome: "Tecnico",
+      perfil: Perfil.TECNICO,
+      ativo: true,
+    });
+    ordemRepo.save.mockImplementation(async (data) => data);
 
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockOS) // getById
-                .mockResolvedValueOnce(null); // tecnico não encontrado
+    const result = await ordemServicoService.atribuirTecnico(
+      "os-1",
+      { tecnicoId: "tec-1" },
+      "sup-1"
+    );
 
-            await expect(ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "invalid-uuid" }, "user-uuid-1")).rejects.toThrow("Técnico não encontrado");
-        });
+    expect(result.status).toBe(StatusOs.EM_ANDAMENTO);
+    expect(ordemRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tecnico: expect.objectContaining({ id: "tec-1" }),
+        status: StatusOs.EM_ANDAMENTO,
+      })
+    );
+  });
 
-        test("Deve atualizar status da ordem de serviço", async () => {
-            const mockOS = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: { id: 1, nome: "Notebook Dell" },
-                solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                tecnico: { id: "user-uuid-3", nome: "Pedro Costa" },
-                status: StatusOs.EM_ANDAMENTO,
-                abertura_em: new Date()
-            };
+  test("falha ao atribuir técnico para OS inexistente", async () => {
+    ordemRepo.findOne.mockResolvedValue(null);
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOS);
-            mockDataSource.getRepository().save.mockResolvedValue(mockOS);
+    await expect(
+      ordemServicoService.atribuirTecnico("os-404", { tecnicoId: "tec-1" }, "sup-1")
+    ).rejects.toThrow("Ordem de serviço não encontrada");
+  });
 
-            const updatedOS = { ...mockOS, status: StatusOs.AGUARDANDO_PECA };
-            mockDataSource.getRepository().findOne.mockResolvedValue(updatedOS);
+  test("atribui técnico sem trocar status quando a OS não está aberta", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.AGUARDANDO_PECA,
+        tecnico: null,
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.AGUARDANDO_PECA,
+        tecnico: { id: "tec-1", nome: "Tecnico" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+      });
+    usuarioRepo.findOne.mockResolvedValue({
+      id: "tec-1",
+      nome: "Tecnico",
+      perfil: Perfil.TECNICO,
+      ativo: true,
+    });
+    ordemRepo.save.mockImplementation(async (data) => data);
 
-            const result = await ordemServicoService.atualizarStatus("os-uuid-1", { status: StatusOs.AGUARDANDO_PECA }, "user-uuid-1");
+    const result = await ordemServicoService.atribuirTecnico(
+      "os-1",
+      { tecnicoId: "tec-1" },
+      "sup-1"
+    );
 
-            expect(result.status).toBe(StatusOs.AGUARDANDO_PECA);
-        });
+    expect(result.status).toBe(StatusOs.AGUARDANDO_PECA);
+  });
 
-        test("Deve concluir ordem de serviço", async () => {
-            const mockOS = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: { id: 1, nome: "Notebook Dell" },
-                solicitante: { id: "user-uuid-1", nome: "João Silva" },
-                tecnico: { id: "user-uuid-3", nome: "Pedro Costa" },
-                status: StatusOs.EM_ANDAMENTO,
-                abertura_em: new Date(),
-                inicio_em: new Date()
-            };
+  test("falha ao atribuir técnico inexistente", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.ABERTA,
+      tecnico: null,
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+    usuarioRepo.findOne.mockResolvedValue(null);
 
-            const conclusaoData = {
-                descricao_servico: "Substituição da placa-mãe",
-                pecas_utilizadas: "Placa-mãe modelo XYZ",
-                horas_trabalhadas: 4
-            };
+    await expect(
+      ordemServicoService.atribuirTecnico("os-1", { tecnicoId: "tec-404" }, "sup-1")
+    ).rejects.toThrow("Técnico não encontrado");
+  });
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOS);
-            mockDataSource.getRepository().save.mockResolvedValue(mockOS);
-
-            const concludedOS = {
-                ...mockOS,
-                ...conclusaoData,
-                status: StatusOs.CONCLUIDA,
-                conclusao_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(concludedOS);
-
-            const result = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData, "user-uuid-3");
-
-            expect(result.status).toBe(StatusOs.CONCLUIDA);
-            expect(result.descricao_servico).toBe("Substituição da placa-mãe");
-            expect(result.pecas_utilizadas).toBe("Placa-mãe modelo XYZ");
-            expect(result.horas_trabalhadas).toBe(4);
-            expect(result.conclusao_em).toBeDefined();
-        });
+  test("falha ao atribuir usuário que não é técnico", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.ABERTA,
+      tecnico: null,
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+    usuarioRepo.findOne.mockResolvedValue({
+      id: "user-1",
+      nome: "Supervisor",
+      perfil: Perfil.SUPERVISOR,
+      ativo: true,
     });
 
-    describe("Validações de encerramento da OS", () => {
-        const mockOSComTecnico = {
-            id: "os-uuid-1",
-            numero: "OS-0001",
-            equipamento: { id: 1, nome: "Notebook Dell" },
-            solicitante: { id: "user-uuid-1", nome: "João Silva" },
-            tecnico: { id: "user-uuid-3", nome: "Pedro Costa" },
-            status: StatusOs.EM_ANDAMENTO,
-            abertura_em: new Date(),
-            inicio_em: new Date()
-        };
+    await expect(
+      ordemServicoService.atribuirTecnico("os-1", { tecnicoId: "user-1" }, "sup-1")
+    ).rejects.toThrow("O usuário informado não é um técnico");
+  });
 
-        test("Deve lançar erro ao concluir OS sem descricao_servico", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
-
-            await expect(
-                ordemServicoService.concluirOrdemServico("os-uuid-1", {
-                    descricao_servico: "",
-                    horas_trabalhadas: 2
-                } as any, "user-uuid-3")
-            ).rejects.toThrow("Descrição do serviço é obrigatória");
-        });
-
-        test("Deve lançar erro ao concluir OS sem horas_trabalhadas (undefined)", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
-
-            await expect(
-                ordemServicoService.concluirOrdemServico("os-uuid-1", {
-                    descricao_servico: "Reparo realizado",
-                    horas_trabalhadas: undefined
-                } as any, "user-uuid-3")
-            ).rejects.toThrow("Horas trabalhadas é obrigatório");
-        });
-
-        test("Deve lançar erro ao concluir OS sem horas_trabalhadas (null)", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
-
-            await expect(
-                ordemServicoService.concluirOrdemServico("os-uuid-1", {
-                    descricao_servico: "Reparo realizado",
-                    horas_trabalhadas: null
-                } as any, "user-uuid-3")
-            ).rejects.toThrow("Horas trabalhadas é obrigatório");
-        });
-
-        test("Deve concluir OS com sucesso mesmo sem pecas_utilizadas (campo opcional)", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSComTecnico);
-            mockDataSource.getRepository().save.mockResolvedValue(mockOSComTecnico);
-
-            const osConcluida = {
-                ...mockOSComTecnico,
-                descricao_servico: "Reparo concluído",
-                pecas_utilizadas: null,
-                horas_trabalhadas: 3,
-                status: StatusOs.CONCLUIDA,
-                conclusao_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(osConcluida);
-
-            const result = await ordemServicoService.concluirOrdemServico("os-uuid-1", {
-                descricao_servico: "Reparo concluído",
-                horas_trabalhadas: 3
-            }, "user-uuid-3");
-
-            expect(result.status).toBe(StatusOs.CONCLUIDA);
-            expect(result.pecas_utilizadas).toBeNull();
-            expect(result.horas_trabalhadas).toBe(3);
-        });
+  test("bloqueia transição inválida sem técnico", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.ABERTA,
+      tecnico: null,
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
     });
 
-    describe("Testes integrados (Fluxo completo de OS)", () => {
-        test("Deve realizar fluxo completo de ordem de serviço", async () => {
-            // Limpar mocks antes do teste integrado
-            jest.clearAllMocks();
+    await expect(
+      ordemServicoService.atualizarStatus(
+        "os-1",
+        { status: StatusOs.EM_ANDAMENTO },
+        "sup-1"
+      )
+    ).rejects.toThrow("Não é possível iniciar uma OS sem técnico atribuído");
+  });
 
-            // 1. CREATE - Criar OS
-            const createData = {
-                equipamentoId: 1,
-                solicitanteId: "user-uuid-1",
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                descricao_falha: "Equipamento não liga"
-            };
+  test("não altera nada quando o status informado é o mesmo", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+      });
+    ordemRepo.save.mockImplementation(async (data) => data);
 
-            const mockEquipamento = { id: 1, nome: "Notebook Dell", codigo: "NOTE001" };
-            const mockSolicitante = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com" };
+    const result = await ordemServicoService.atualizarStatus(
+      "os-1",
+      { status: StatusOs.EM_ANDAMENTO },
+      "tec-1"
+    );
 
-            // Setup mocks para criação
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockEquipamento)
-                .mockResolvedValueOnce(mockSolicitante);
-            mockDataSource.getRepository().count.mockResolvedValue(0);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = "os-uuid-1";
-                entity.abertura_em = new Date();
-                return entity;
-            });
+    expect(result.status).toBe(StatusOs.EM_ANDAMENTO);
+  });
 
-            const mockOSCreated = {
-                id: "os-uuid-1",
-                numero: "OS-0001",
-                equipamento: mockEquipamento,
-                solicitante: mockSolicitante,
-                tecnico: null,
-                tipo_manutencao: TipoManutencao.CORRETIVA,
-                prioridade: Prioridade.ALTA,
-                status: StatusOs.ABERTA,
-                descricao_falha: "Equipamento não liga",
-                abertura_em: new Date()
-            };
-
-            // Mock para o getById chamado no final do createOrdemServico
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockOSCreated);
-
-            const createdOS = await ordemServicoService.createOrdemServico(createData);
-            expect(createdOS.status).toBe(StatusOs.ABERTA);
-            expect(createdOS.numero).toBe("OS-0001");
-
-            // 2. UPDATE - Atribuir técnico
-            jest.clearAllMocks();
-            const mockTecnico = { id: "user-uuid-3", nome: "Pedro Costa", perfil: Perfil.TECNICO };
-
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(mockOSCreated)
-                .mockResolvedValueOnce(mockTecnico);
-            mockDataSource.getRepository().save.mockResolvedValue(mockOSCreated);
-
-            const osComTecnico = {
-                ...mockOSCreated,
-                tecnico: mockTecnico,
-                status: StatusOs.EM_ANDAMENTO,
-                inicio_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(osComTecnico);
-
-            const osAtribuida = await ordemServicoService.atribuirTecnico("os-uuid-1", { tecnicoId: "user-uuid-3" }, "user-uuid-1");
-            expect(osAtribuida.status).toBe(StatusOs.EM_ANDAMENTO);
-            expect(osAtribuida.tecnico).toBeDefined();
-
-            // 3. UPDATE - Concluir OS
-            jest.clearAllMocks();
-            const conclusaoData = {
-                descricao_servico: "Reparo concluído com sucesso",
-                horas_trabalhadas: 2
-            };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(osComTecnico);
-            mockDataSource.getRepository().save.mockResolvedValue(osComTecnico);
-
-            const osConcluida = {
-                ...osComTecnico,
-                ...conclusaoData,
-                status: StatusOs.CONCLUIDA,
-                conclusao_em: new Date()
-            };
-            mockDataSource.getRepository().findOne.mockResolvedValue(osConcluida);
-
-            const osFinal = await ordemServicoService.concluirOrdemServico("os-uuid-1", conclusaoData, "user-uuid-3");
-            expect(osFinal.status).toBe(StatusOs.CONCLUIDA);
-            expect(osFinal.descricao_servico).toBe("Reparo concluído com sucesso");
-            expect(osFinal.horas_trabalhadas).toBe(2);
-        });
+  test("bloqueia alteração de OS concluída", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.CONCLUIDA,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
     });
 
+    await expect(
+      ordemServicoService.atualizarStatus("os-1", { status: StatusOs.EM_ANDAMENTO }, "tec-1")
+    ).rejects.toThrow("Não é possível alterar uma OS concluída");
+  });
+
+  test("bloqueia alteração de OS cancelada", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.CANCELADA,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.atualizarStatus("os-1", { status: StatusOs.EM_ANDAMENTO }, "tec-1")
+    ).rejects.toThrow("Não é possível alterar uma OS cancelada");
+  });
+
+  test("bloqueia transição inválida para OS aberta", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.ABERTA,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.atualizarStatus("os-1", { status: StatusOs.AGUARDANDO_PECA }, "tec-1")
+    ).rejects.toThrow("Transição de status inválida para OS aberta");
+  });
+
+  test("bloqueia transição inválida para OS em andamento", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.EM_ANDAMENTO,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.atualizarStatus("os-1", { status: StatusOs.ABERTA }, "tec-1")
+    ).rejects.toThrow("Transição de status inválida para OS em andamento");
+  });
+
+  test("bloqueia transição inválida para OS aguardando peça", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.AGUARDANDO_PECA,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.atualizarStatus("os-1", { status: StatusOs.ABERTA }, "tec-1")
+    ).rejects.toThrow("Transição de status inválida para OS aguardando peça");
+  });
+
+  test("define inicio_em ao mover para EM_ANDAMENTO pela primeira vez", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.AGUARDANDO_PECA,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: null,
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+      });
+    ordemRepo.save.mockImplementation(async (data) => data);
+
+    const result = await ordemServicoService.atualizarStatus(
+      "os-1",
+      { status: StatusOs.EM_ANDAMENTO },
+      "tec-1"
+    );
+
+    expect(result.status).toBe(StatusOs.EM_ANDAMENTO);
+  });
+
+  test("conclui ordem com transação e histórico", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.CONCLUIDA,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        descricao_servico: "Troca de placa",
+        horas_trabalhadas: 3,
+      });
+    ordemRepo.save.mockImplementation(async (data) => data);
+
+    const result = await ordemServicoService.concluirOrdemServico(
+      "os-1",
+      {
+        descricao_servico: "Troca de placa",
+        horas_trabalhadas: 3,
+      },
+      "tec-1"
+    );
+
+    expect(result.status).toBe(StatusOs.CONCLUIDA);
+    expect(historicoService.registrarHistorico).toHaveBeenCalledWith(
+      "os-1",
+      "tec-1",
+      StatusOs.EM_ANDAMENTO,
+      StatusOs.CONCLUIDA,
+      "Ordem de serviço concluída",
+      mockManager
+    );
+  });
+
+  test("bloqueia conclusão sem técnico", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.EM_ANDAMENTO,
+      tecnico: null,
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.concluirOrdemServico(
+        "os-1",
+        { descricao_servico: "Teste", horas_trabalhadas: 2 },
+        "tec-1"
+      )
+    ).rejects.toThrow("Não é possível concluir uma OS sem técnico atribuído");
+  });
+
+  test("bloqueia conclusão de OS cancelada", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.CANCELADA,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.concluirOrdemServico(
+        "os-1",
+        { descricao_servico: "Teste", horas_trabalhadas: 2 },
+        "tec-1"
+      )
+    ).rejects.toThrow("Não é possível concluir uma OS cancelada");
+  });
+
+  test("bloqueia conclusão sem descrição", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.EM_ANDAMENTO,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.concluirOrdemServico(
+        "os-1",
+        { descricao_servico: "", horas_trabalhadas: 2 },
+        "tec-1"
+      )
+    ).rejects.toThrow("Descrição do serviço é obrigatória");
+  });
+
+  test("bloqueia conclusão sem horas trabalhadas", async () => {
+    ordemRepo.findOne.mockResolvedValue({
+      id: "os-1",
+      status: StatusOs.EM_ANDAMENTO,
+      tecnico: { id: "tec-1" },
+      equipamento: { id: 1 },
+      solicitante: { id: "sol-1" },
+    });
+
+    await expect(
+      ordemServicoService.concluirOrdemServico(
+        "os-1",
+        { descricao_servico: "Teste", horas_trabalhadas: undefined as never },
+        "tec-1"
+      )
+    ).rejects.toThrow("Horas trabalhadas é obrigatório");
+  });
+
+  test("preenche inicio_em na conclusão quando ainda não existe", async () => {
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: null,
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.CONCLUIDA,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+      });
+    ordemRepo.save.mockImplementation(async (data) => data);
+
+    const result = await ordemServicoService.concluirOrdemServico(
+      "os-1",
+      { descricao_servico: "Teste", horas_trabalhadas: 2 },
+      "tec-1"
+    );
+
+    expect(result.status).toBe(StatusOs.CONCLUIDA);
+  });
 });

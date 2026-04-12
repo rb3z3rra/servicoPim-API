@@ -9,7 +9,9 @@ import { Perfil } from "../../src/types/usr_perfil.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
 
-let accessToken: string;
+let solicitanteToken: string;
+let supervisorToken: string;
+let tecnicoToken: string;
 let solicitanteId: string;
 let tecnicoId: string;
 let equipamentoId: number;
@@ -32,10 +34,19 @@ async function criarUsuario(
     return user.id;
 }
 
+async function login(email: string): Promise<string> {
+    const res = await request(app)
+        .post("/auth/login")
+        .send({ email, senha: "senha123" });
+
+    return res.body.accessToken;
+}
+
 describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", () => {
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
 
         // Limpar dados de teste anteriores
@@ -56,22 +67,25 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
             "solicitante-os-rt@teste.com",
             Perfil.SOLICITANTE
         );
+        const supervisorId = await criarUsuario(
+            "Supervisor OS",
+            "supervisor-os-rt@teste.com",
+            Perfil.SUPERVISOR
+        );
         tecnicoId = await criarUsuario(
             "Tecnico OS",
             "tecnico-os-rt@teste.com",
             Perfil.TECNICO
         );
 
-        // Login para obter token
-        const loginRes = await request(app)
-            .post("/auth/login")
-            .send({ email: "solicitante-os-rt@teste.com", senha: "senha123" });
-        accessToken = loginRes.body.accessToken;
+        solicitanteToken = await login("solicitante-os-rt@teste.com");
+        supervisorToken = await login("supervisor-os-rt@teste.com");
+        tecnicoToken = await login("tecnico-os-rt@teste.com");
 
         // Criar equipamento de teste
         const equipRes = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-OS-001",
                 nome: "Equipamento para OS",
@@ -100,10 +114,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("POST /ordens-servico - Deve criar uma nova OS com sucesso", async () => {
         const response = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "CORRETIVA",
                 prioridade: "ALTA",
                 descricao_falha: "Servidor não responde às requisições",
@@ -123,10 +136,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("POST /ordens-servico - Deve falhar com equipamento inexistente", async () => {
         const response = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId: 999999,
-                solicitanteId,
                 tipo_manutencao: "PREVENTIVA",
                 prioridade: "BAIXA",
                 descricao_falha: "Teste com equipamento inexistente",
@@ -141,7 +153,6 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
             .post("/ordens-servico")
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "CORRETIVA",
                 prioridade: "ALTA",
                 descricao_falha: "Sem token de auth",
@@ -153,7 +164,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("POST /ordens-servico - Deve falhar com dados inválidos", async () => {
         const response = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId: -1,
                 descricao_falha: "abc",
@@ -167,7 +178,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("GET /ordens-servico - Deve listar todas as OS", async () => {
         const response = await request(app)
             .get("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${solicitanteToken}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
@@ -176,10 +187,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("GET /ordens-servico/:id - Deve buscar OS por ID", async () => {
         const createRes = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "PREVENTIVA",
                 prioridade: "BAIXA",
                 descricao_falha: "Manutenção preventiva agendada para o servidor",
@@ -187,7 +197,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         const response = await request(app)
             .get(`/ordens-servico/${createRes.body.id}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${solicitanteToken}`);
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(createRes.body.id);
@@ -197,7 +207,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("GET /ordens-servico/:id - Deve falhar com ID inexistente", async () => {
         const response = await request(app)
             .get("/ordens-servico/00000000-0000-0000-0000-000000000000")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${solicitanteToken}`);
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Ordem de serviço não encontrada");
@@ -210,10 +220,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         test("PATCH /ordens-servico/:id/atribuir-tecnico - Deve atribuir técnico", async () => {
             const createRes = await request(app)
                 .post("/ordens-servico")
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${solicitanteToken}`)
                 .send({
                     equipamentoId,
-                    solicitanteId,
                     tipo_manutencao: "CORRETIVA",
                     prioridade: "ALTA",
                     descricao_falha: "Falha crítica no servidor de produção",
@@ -223,7 +232,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
             const response = await request(app)
                 .patch(`/ordens-servico/${osId}/atribuir-tecnico`)
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${supervisorToken}`)
                 .send({ tecnicoId });
 
             expect(response.status).toBe(200);
@@ -236,7 +245,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         test("PATCH /ordens-servico/:id/status - Deve atualizar status", async () => {
             const response = await request(app)
                 .patch(`/ordens-servico/${osId}/status`)
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
                 .send({ status: "AGUARDANDO_PECA" });
 
             expect(response.status).toBe(200);
@@ -246,7 +255,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         test("PATCH /ordens-servico/:id/status - Deve voltar para EM_ANDAMENTO", async () => {
             const response = await request(app)
                 .patch(`/ordens-servico/${osId}/status`)
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
                 .send({ status: "EM_ANDAMENTO" });
 
             expect(response.status).toBe(200);
@@ -256,7 +265,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         test("PATCH /ordens-servico/:id/concluir - Deve concluir a OS", async () => {
             const response = await request(app)
                 .patch(`/ordens-servico/${osId}/concluir`)
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
                 .send({
                     descricao_servico: "Substituição do disco rígido e reinstalação do sistema",
                     pecas_utilizadas: "SSD 1TB Samsung EVO",
@@ -276,7 +285,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         test("PATCH /ordens-servico/:id/status - Deve falhar ao alterar OS concluída", async () => {
             const response = await request(app)
                 .patch(`/ordens-servico/${osId}/status`)
-                .set("Authorization", `Bearer ${accessToken}`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
                 .send({ status: "EM_ANDAMENTO" });
 
             expect(response.status).toBe(400);
@@ -288,10 +297,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("PATCH /ordens-servico/:id/atribuir-tecnico - Deve falhar com técnico inexistente", async () => {
         const createRes = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "CORRETIVA",
                 prioridade: "ALTA",
                 descricao_falha: "Teste com técnico inexistente no sistema",
@@ -299,7 +307,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         const response = await request(app)
             .patch(`/ordens-servico/${createRes.body.id}/atribuir-tecnico`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({ tecnicoId: "00000000-0000-0000-0000-000000000000" });
 
         expect(response.status).toBe(400);
@@ -309,10 +317,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("PATCH /ordens-servico/:id/atribuir-tecnico - Deve falhar ao atribuir não-técnico", async () => {
         const createRes = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "CORRETIVA",
                 prioridade: "ALTA",
                 descricao_falha: "Teste atribuindo solicitante como técnico",
@@ -320,7 +327,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         const response = await request(app)
             .patch(`/ordens-servico/${createRes.body.id}/atribuir-tecnico`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({ tecnicoId: solicitanteId });
 
         expect(response.status).toBe(400);
@@ -330,10 +337,9 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
     test("PATCH /ordens-servico/:id/concluir - Deve falhar sem técnico atribuído", async () => {
         const createRes = await request(app)
             .post("/ordens-servico")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
             .send({
                 equipamentoId,
-                solicitanteId,
                 tipo_manutencao: "PREVENTIVA",
                 prioridade: "BAIXA",
                 descricao_falha: "Teste conclusão sem técnico atribuído",
@@ -341,7 +347,7 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         const response = await request(app)
             .patch(`/ordens-servico/${createRes.body.id}/concluir`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
             .send({
                 descricao_servico: "Tentativa de conclusão sem técnico",
                 horas_trabalhadas: 1,

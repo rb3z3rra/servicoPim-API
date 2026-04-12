@@ -21,7 +21,7 @@ export class Usuario {
   perfil!: Perfil;
 
   @Column({ type: "varchar", nullable: true })
-  setor!: string;
+  setor!: string | null;
 
   @Column({ type: "boolean", default: true })
   ativo!: boolean;

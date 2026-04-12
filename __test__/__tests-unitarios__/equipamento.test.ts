@@ -127,6 +127,22 @@ describe("Testes CRUD de Equipamentos", () => {
 
             await expect(equipamentoService.getById(999)).rejects.toThrow("Equipamento não encontrado");
         });
+
+        test("Deve buscar equipamento por código", async () => {
+            const mockEquipment = { id: 1, codigo: "TEC001", nome: "Teclado Mecânico", tipo: "Periférico", localizacao: "Escritório", ativo: true };
+
+            mockDataSource.getRepository().findOne.mockResolvedValue(mockEquipment);
+
+            const equipment = await equipamentoService.getByCodigo("TEC001");
+
+            expect(equipment.codigo).toBe("TEC001");
+        });
+
+        test("Deve lançar erro ao buscar código inexistente", async () => {
+            mockDataSource.getRepository().findOne.mockResolvedValue(null);
+
+            await expect(equipamentoService.getByCodigo("CODIGO-NAO-EXISTE")).rejects.toThrow("Equipamento não encontrado");
+        });
     });
 
     describe("UPDATE - Atualizar equipamentos", () => {
@@ -171,6 +187,20 @@ describe("Testes CRUD de Equipamentos", () => {
                 .mockResolvedValueOnce({ id: 2, codigo: "MOU001" }); // para verificar duplicados
 
             await expect(equipamentoService.updateEquipamento(1, updateData)).rejects.toThrow("Código do equipamento já cadastrado");
+        });
+
+        test("Deve permitir atualizar para um novo código único", async () => {
+            const existingEquipment = { id: 1, codigo: "TEC001", nome: "Teclado Mecânico", tipo: "Periférico", localizacao: "Escritório", ativo: true };
+            const updateData = { codigo: "NOVO001" };
+
+            mockDataSource.getRepository().findOne
+                .mockResolvedValueOnce(existingEquipment)
+                .mockResolvedValueOnce(null);
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => entity);
+
+            const updated = await equipamentoService.updateEquipamento(1, updateData);
+
+            expect(updated.codigo).toBe("NOVO001");
         });
     });
 

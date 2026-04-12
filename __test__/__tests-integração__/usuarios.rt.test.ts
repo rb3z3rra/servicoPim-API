@@ -42,6 +42,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
         accessToken = await loginAndGetToken();
         solicitanteToken = await criarUsuarioELogin(
@@ -71,7 +72,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Novo Usuario",
                 email: "criar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -90,7 +91,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Usuario Original",
                 email: "duplicado-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -101,7 +102,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Usuario Duplicado",
                 email: "duplicado-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -117,7 +118,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "AB",
                 email: "email-invalido",
-                senha_hash: "123",
+                senha: "123",
                 perfil: "INVALIDO",
             })
             .set("Authorization", `Bearer ${accessToken}`);
@@ -149,7 +150,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Buscar Por Id",
                 email: "buscar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -180,7 +181,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Antes Update",
                 email: "update-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -206,7 +207,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Tentativa",
                 email: "tentativa-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -244,13 +245,13 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
     });
 
     // DELETE
-    test("DELETE /usuarios/:id - Deve deletar usuário", async () => {
+    test("DELETE /usuarios/:id - Deve desativar usuário e bloquear novo login", async () => {
         const createRes = await request(app)
             .post("/usuarios")
             .send({
                 nome: "Para Deletar",
                 email: "deletar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -266,7 +267,17 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .get(`/usuarios/${createRes.body.id}`)
             .set("Authorization", `Bearer ${accessToken}`);
 
-        expect(getRes.status).toBe(400);
-        expect(getRes.body.message).toBe("Usuário não encontrado");
+        expect(getRes.status).toBe(200);
+        expect(getRes.body.ativo).toBe(false);
+
+        const loginRes = await request(app)
+            .post("/auth/login")
+            .send({
+                email: "deletar-usuario-rt@teste.com",
+                senha: "senha123",
+            });
+
+        expect(loginRes.status).toBe(403);
+        expect(loginRes.body.message).toBe("Usuário inativo");
     });
 });

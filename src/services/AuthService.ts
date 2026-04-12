@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { LoginDTO } from "../types/auth_type.js";
 import { AppError } from "../errors/AppError.js";
+import { env } from "../config/env.js";
 
 export class AuthService {
   private userRepo: Repository<Usuario>;
@@ -47,7 +48,7 @@ export class AuthService {
         email: usuario.email,
         perfil: usuario.perfil,
       },
-      process.env.JWT_SECRET as string,
+      env.JWT_ACCESS_SECRET,
       { expiresIn: "15m" }
     );
 
@@ -55,7 +56,7 @@ export class AuthService {
       {
         sub: usuario.id,
       },
-      process.env.JWT_REFRESH_SECRET as string,
+      env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
 
@@ -78,7 +79,7 @@ export class AuthService {
     try {
       decoded = jwt.verify(
         token,
-        process.env.JWT_REFRESH_SECRET as string
+        env.JWT_REFRESH_SECRET
       ) as { sub: string };
     } catch {
       throw new AppError("Refresh Token inválido ou expirado", 400);
@@ -100,7 +101,7 @@ export class AuthService {
         email: usuario.email,
         perfil: usuario.perfil,
       },
-      process.env.JWT_SECRET as string,
+      env.JWT_ACCESS_SECRET,
       { expiresIn: "15m" }
     );
 
@@ -108,7 +109,7 @@ export class AuthService {
       {
         sub: usuario.id,
       },
-      process.env.JWT_REFRESH_SECRET as string,
+      env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
 
