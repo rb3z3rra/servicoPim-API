@@ -14,6 +14,9 @@ export class Usuario {
   @Column({ type: "varchar", unique: true, nullable: false })
   email!: string;
 
+  @Column({ type: "varchar", unique: true, nullable: false })
+  matricula!: string;
+
   @Column({ type: "varchar", nullable: false, select: false })
   senha_hash!: string;
 
@@ -21,7 +24,7 @@ export class Usuario {
   perfil!: Perfil;
 
   @Column({ type: "varchar", nullable: true })
-  setor!: string;
+  setor!: string | null;
 
   @Column({ type: "boolean", default: true })
   ativo!: boolean;

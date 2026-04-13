@@ -18,8 +18,9 @@ async function loginAndGetToken(): Promise<string> {
     await repo.save({
         nome: "Admin Equip",
         email,
+        matricula: "EQP-RT-001",
         senha_hash: senhaHash,
-        perfil: Perfil.SOLICITANTE,
+        perfil: Perfil.SUPERVISOR,
         setor: "TI",
         ativo: true,
     });
@@ -35,6 +36,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
         accessToken = await loginAndGetToken();
     });

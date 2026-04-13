@@ -5,7 +5,6 @@ import { StatusOs } from "../types/os_status.js";
 
 export const createOrdemServicoSchemaDTO = z.object({
   equipamentoId: z.number().int().positive(),
-  solicitanteId: z.uuid(),
   tipo_manutencao: z.enum(TipoManutencao),
   prioridade: z.enum(Prioridade),
   descricao_falha: z.string().trim().min(5).max(1000),
@@ -25,6 +24,11 @@ export const concluirOrdemServicoSchemaDTO = z.object({
   horas_trabalhadas: z.number().positive(),
 });
 
+export const listarOrdensServicoQuerySchemaDTO = z.object({
+  status: z.enum(StatusOs).optional(),
+  prioridade: z.enum(Prioridade).optional(),
+});
+
 export type CreateOrdemServicoSchemaDTO = z.infer<
   typeof createOrdemServicoSchemaDTO
 >;
@@ -36,4 +40,7 @@ export type AtualizarStatusSchemaDTO = z.infer<
 >;
 export type ConcluirOrdemServicoSchemaDTO = z.infer<
   typeof concluirOrdemServicoSchemaDTO
+>;
+export type ListarOrdensServicoQuerySchemaDTO = z.infer<
+  typeof listarOrdensServicoQuerySchemaDTO
 >;

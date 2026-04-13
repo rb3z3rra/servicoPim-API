@@ -4,6 +4,18 @@ import { Usuario } from "../entities/Usuario.js";
 import type { DataSource } from "typeorm";
 import bcrypt from "bcryptjs";
 
+type UserInput = {
+  nome: string;
+  email: string;
+  matricula: string;
+  senha: string;
+  perfil: Usuario["perfil"];
+  setor?: string | null;
+  ativo?: boolean;
+};
+
+type UserUpdateInput = Partial<UserInput>;
+
 export class UsuarioService {
   private userRepo: Repository<Usuario>;
 
@@ -28,7 +40,7 @@ export class UsuarioService {
   async getByEmail(email: string): Promise<Usuario> {
     const user = await this.userRepo.findOne({
       where: { email },
-      select: ["id", "nome", "email", "perfil", "setor", "ativo", "created_at"],
+      select: ["id", "nome", "email", "matricula", "perfil", "setor", "ativo", "created_at"],
     });
 
     if (!user) {
@@ -38,25 +50,35 @@ export class UsuarioService {
     return user;
   }
 
-  async createUser(data: Usuario): Promise<Usuario> {
+  async createUser(data: UserInput): Promise<Usuario> {
     const usuarioExistente = await this.userRepo.findOne({
-      where: { email: data.email },
+      where: [{ email: data.email }, { matricula: data.matricula }],
     });
 
     if (usuarioExistente) {
-      throw new AppError("Email já cadastrado");
+      if (usuarioExistente.email === data.email) {
+        throw new AppError("Email já cadastrado");
+      }
+
+      throw new AppError("Matrícula já cadastrada");
     }
 
-    data.senha_hash = await bcrypt.hash(data.senha_hash, 8);
-
-    const novoUsuario = this.userRepo.create(data);
+    const novoUsuario = this.userRepo.create({
+      nome: data.nome,
+      email: data.email,
+      matricula: data.matricula,
+      senha_hash: await bcrypt.hash(data.senha, 8),
+      perfil: data.perfil,
+      setor: data.setor ?? null,
+      ativo: data.ativo ?? true,
+    });
 
     await this.userRepo.save(novoUsuario);
 
     return novoUsuario;
   }
 
-  async updateUser(id: string, data: Partial<Usuario>): Promise<Usuario> {
+  async updateUser(id: string, data: UserUpdateInput): Promise<Usuario> {
     const user = await this.getById(id);
 
     if (data.email && data.email !== user.email) {
@@ -69,11 +91,28 @@ export class UsuarioService {
       }
     }
 
-    if (data.senha_hash) {
-      data.senha_hash = await bcrypt.hash(data.senha_hash, 8);
+    if (data.matricula && data.matricula !== user.matricula) {
+      const matriculaExistente = await this.userRepo.findOne({
+        where: { matricula: data.matricula },
+      });
+
+      if (matriculaExistente) {
+        throw new AppError("Matrícula já cadastrada");
+      }
     }
 
-    Object.assign(user, data);
+    if (data.senha) {
+      user.senha_hash = await bcrypt.hash(data.senha, 8);
+    }
+
+    Object.assign(user, {
+      nome: data.nome ?? user.nome,
+      email: data.email ?? user.email,
+      matricula: data.matricula ?? user.matricula,
+      perfil: data.perfil ?? user.perfil,
+      setor: data.setor ?? user.setor,
+      ativo: data.ativo ?? user.ativo,
+    });
 
     await this.userRepo.save(user);
 
@@ -82,8 +121,8 @@ export class UsuarioService {
 
   async deleteUser(id: string): Promise<void> {
     const user = await this.getById(id);
-
-    await this.userRepo.remove(user);
+    user.ativo = false;
+    await this.userRepo.save(user);
   }
 }
 

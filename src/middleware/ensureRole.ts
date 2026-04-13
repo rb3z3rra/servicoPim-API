@@ -1,5 +1,4 @@
 import type { RequestHandler } from "express";
-import type { AuthPayload } from "../middleware/authMiddleware.js";
 import { AppError } from "../errors/AppError.js";
 import type { Perfil } from "../types/usr_perfil.js";
 

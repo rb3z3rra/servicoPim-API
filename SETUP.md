@@ -1,66 +1,129 @@
-# ⚙️ Guia de Setup e Instalação (Serviço PIM)
+# Guia de Setup e Instalação
 
-Siga este guia prático para colocar o Backend online no seu equipamento local. 
+Guia rápido para rodar a API com migrations e testes reproduzíveis.
 
-## 📦 1. Pré-Requisitos Padrões
-* Você precisará ter o **[Node.js](https://nodejs.org/)** instalado (Recomendamos a versão LTS = `v20.x`)
-* Seu pacote de orquestração **[Docker Desktop](https://www.docker.com/)** em segundo plano precisa estar aberto e "Verde".
-* O Editor de Texto (VSCode) aberto na pasta RAIZ deste projeto.
+## Pré-requisitos
+- Node.js 20+
+- Docker com `docker compose`
+- PostgreSQL local ou container
 
----
-
-## 🛠️ 2. Mão na Massa (Start)
-
-### 2.1 Clone e Bibliotecas Iniciais
-Se você baixou o projeto do GitHub, ele virá cru (apenas os arquivos fonte, por motivo de redução de banda e peso). Preencha o resto executando no terminal:
+## Instalação
 ```bash
 npm install
 ```
 
-### 2.2 As Chaves da Casa (.env)
-A aplicação necessita de configurações de ambiente privadas (senhas do banco, redes e chaves JWT) para iniciar com segurança. 
-1. Ache o arquivo `.env.example` na raiz do seu projeto.
-2. Copie ele e cole, renomeando a cópia pura e simples para `.env`.
-3. Certifique-se de que a variável `DB_HOST` está apontando para o seu objetivo de uso:
-   - Se você for programar no modo `DEV`, mude para `DB_HOST=localhost`.
-   - Se for apenas subir a imagem compilada, deixe como `DB_HOST=postgres`.
+Copie `.env.example` para `.env`:
 
----
+```bash
+cp .env.example .env
+```
 
-## 🏗️ 3. As Duas Formas de Rodar
+Preencha os valores. Os segredos obrigatórios são:
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
 
-Escolha a modalidade que melhor atende seu momento como desenvolvedor:
+## Estrutura de ambientes
+- `.env`: ambiente normal de desenvolvimento
+- `.env.test`: ambiente isolado para testes integrados
+- `docker-compose.yml`: infraestrutura normal
+- `docker-compose.test.yml`: infraestrutura exclusiva de teste
 
-### Opção A: Modo "Hot-Reload" Diário (Desenvolvimento Frequente)
-Neste modo, o Docker cuidará apenas da Infraestrutura pesada (Postgres & PgAdmin), enquanto seu Node atuará diretamente na sua máquina usando o pacote super-rápido `tsx`.
-Toda vez que você der "Salvar" (`.ts`), o Node se recompilará e recomeçará sozinho.
+Resumo:
+- Postman e uso manual da API: ambiente normal
+- suíte integrada automatizada: ambiente de teste
 
-1. Suba os contêineres do Banco de Dados ocultamente no Docker:
+## Portas usadas
+- API local: `9090`
+- Postgres de desenvolvimento via Docker: `5433`
+- Postgres de teste: `5434`
+- PgAdmin: `8080`
+
+## Desenvolvimento local
+Se quiser usar apenas o banco em container:
 ```bash
 docker compose up postgres pgadmin -d
-```
-2. Abra o terminal raiz do VSCode e chame o Observador do projeto:
-```bash
+npm run db:migrate
 npm run dev
 ```
 
-### Opção B: Modo Container Dist (Homologação ou Produção Exata)
-Neste pipeline, utilizamos a nossa arquitetura `Multi-stage Build` esculpida no Dockerfile. O Docker vai compilar o TypeScript, descartar os pesos mortos (`node_modules`) e iniciar um contêiner Linux limpo com os arquivos da pasta `/dist`. Perfeito para testar a entrega no cliente ou Cloud (AWS/Azure).
+Nesse modo:
+- o banco sobe em `localhost:5433`
+- a API sobe localmente em `localhost:9090`
+- você pode usar o Postman normalmente
 
-1. Execute o Build central completo. Ele unirá o Banco de Dados com a nova Build recém-forjada da "app":
+Importante:
+- não suba a API no Docker e localmente ao mesmo tempo
+- isso causa conflito na porta `9090`
+
+Para rodar tudo por Docker:
 ```bash
 docker compose up --build -d
 ```
 
----
+Se usar esse modo:
+- não rode `npm run dev` ao mesmo tempo
 
-## 📡 4. Visualizando Seus Dados
+## Primeiro supervisor
+Como `POST /usuarios` exige autenticação de `SUPERVISOR`, o primeiro supervisor deve existir antes do uso normal da API.
 
-Se você configurou e levantou o projeto e viu `"Servidor rodando na porta 9090"` no terminal, seu sistema está 100% no ar!
+Opções:
+- inserir manualmente o primeiro supervisor no banco
+- usar um seed/script interno, se o time optar por criar depois
 
-📌 **Lendo o Banco de Dados Fisicamente (PgAdmin):** 
-1. Acesse `http://localhost:5050` no seu navegador.
-2. Faça login com o email padrão (normalmente `admin@admin.com`) e a senha do docker-compose (`admin`).
-3. Adicione e conecte um "New Server", apontando o nome para o hostname `postgres` e o usuário/senha estabelecido no seu arquivo `.env`.
+Campos necessários no primeiro usuário:
+- `nome`
+- `email`
+- `matricula`
+- `senha_hash`
+- `perfil = SUPERVISOR`
+- `setor`
+- `ativo = true`
 
-> 💡 **Dica de Testes:** Para fazer Requisições na API HTTP recém-nascida, busque criar um Workspace local no **Postman** e enviar JSONs para `http://localhost:9090`. Se tiver dúvidas sobre a estrutura de *Body*, consulte nossa documentação auxiliar de rotas.
+## Testes
+Unitários:
+```bash
+npm test
+```
+
+Integrados com Postgres isolado:
+```bash
+npm run test:integration:docker
+```
+
+Esse comando:
+1. sobe `postgres-test` em `localhost:5434`
+2. carrega `.env.test`
+3. aplica migrations
+4. roda a suíte integrada
+5. derruba os containers no final
+
+Se quiser rodar a integração manualmente:
+```bash
+docker compose -f docker-compose.test.yml up -d
+set -a
+source .env.test
+set +a
+npm run db:migrate
+npm run test:integration:jest
+```
+
+Se o Docker não estiver acessível, os testes integrados vão falhar ao conectar em `127.0.0.1:5434`.
+
+## Teste manual da API
+Use o arquivo [`testes-api.http`](./testes-api.http) como roteiro.
+
+Fluxo recomendado:
+1. verificar `GET /health`
+2. fazer login como supervisor
+3. criar usuários de teste
+4. criar equipamento
+5. abrir OS
+6. atribuir técnico
+7. atualizar status
+8. concluir OS
+9. consultar histórico
+
+## Endpoints úteis
+- API: `http://localhost:9090`
+- Healthcheck: `http://localhost:9090/health`
+- PgAdmin: `http://localhost:8080`

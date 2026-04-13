@@ -12,7 +12,8 @@ let solicitanteToken: string;
 async function criarUsuarioELogin(
     nome: string,
     email: string,
-    perfil: Perfil
+    perfil: Perfil,
+    matricula: string
 ): Promise<string> {
     const repo = appDataSource.getRepository(Usuario);
     await repo.delete({ email });
@@ -21,6 +22,7 @@ async function criarUsuarioELogin(
     await repo.save({
         nome,
         email,
+        matricula,
         senha_hash: senhaHash,
         perfil,
         setor: "TI",
@@ -35,19 +37,21 @@ async function criarUsuarioELogin(
 }
 
 async function loginAndGetToken(): Promise<string> {
-    return criarUsuarioELogin("Admin Auth", "admin-auth@teste.com", Perfil.SUPERVISOR);
+    return criarUsuarioELogin("Admin Auth", "admin-auth@teste.com", Perfil.SUPERVISOR, "ADM-RT-001");
 }
 
 describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
         accessToken = await loginAndGetToken();
         solicitanteToken = await criarUsuarioELogin(
             "Solicitante Auth",
             "solicitante-auth@teste.com",
-            Perfil.SOLICITANTE
+            Perfil.SOLICITANTE,
+            "SOL-RT-001"
         );
     });
 
@@ -71,7 +75,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Novo Usuario",
                 email: "criar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-001",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -81,6 +86,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
         expect(response.body).toHaveProperty("id");
         expect(response.body.nome).toBe("Novo Usuario");
         expect(response.body.email).toBe("criar-usuario-rt@teste.com");
+        expect(response.body.matricula).toBe("USR-RT-001");
         expect(response.body.perfil).toBe("SOLICITANTE");
     });
 
@@ -90,7 +96,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Usuario Original",
                 email: "duplicado-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-002",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -101,7 +108,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Usuario Duplicado",
                 email: "duplicado-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-003",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -117,7 +125,7 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "AB",
                 email: "email-invalido",
-                senha_hash: "123",
+                senha: "123",
                 perfil: "INVALIDO",
             })
             .set("Authorization", `Bearer ${accessToken}`);
@@ -149,7 +157,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Buscar Por Id",
                 email: "buscar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-004",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -180,7 +189,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Antes Update",
                 email: "update-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-005",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -191,12 +201,43 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .set("Authorization", `Bearer ${accessToken}`)
             .send({
                 nome: "Depois Update",
+                matricula: "USR-RT-005-ALT",
                 setor: "RH",
             });
 
         expect(response.status).toBe(200);
         expect(response.body.nome).toBe("Depois Update");
+        expect(response.body.matricula).toBe("USR-RT-005-ALT");
         expect(response.body.setor).toBe("RH");
+    });
+
+    test("POST /usuarios - Deve falhar com matrícula duplicada", async () => {
+        await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Usuario Matricula Original",
+                email: "matricula-original-usuario-rt@teste.com",
+                matricula: "USR-RT-006",
+                senha: "senha123",
+                perfil: "SOLICITANTE",
+                setor: "TI",
+            })
+            .set("Authorization", `Bearer ${accessToken}`);
+
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Usuario Matricula Duplicada",
+                email: "matricula-duplicada-usuario-rt@teste.com",
+                matricula: "USR-RT-006",
+                senha: "senha123",
+                perfil: "SOLICITANTE",
+                setor: "TI",
+            })
+            .set("Authorization", `Bearer ${accessToken}`);
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe("Matrícula já cadastrada");
     });
 
     // AUTORIZAÇÃO (403 - ensureRole)
@@ -206,7 +247,8 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .send({
                 nome: "Tentativa",
                 email: "tentativa-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-007",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -244,13 +286,14 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
     });
 
     // DELETE
-    test("DELETE /usuarios/:id - Deve deletar usuário", async () => {
+    test("DELETE /usuarios/:id - Deve desativar usuário e bloquear novo login", async () => {
         const createRes = await request(app)
             .post("/usuarios")
             .send({
                 nome: "Para Deletar",
                 email: "deletar-usuario-rt@teste.com",
-                senha_hash: "senha123",
+                matricula: "USR-RT-008",
+                senha: "senha123",
                 perfil: "SOLICITANTE",
                 setor: "TI",
             })
@@ -266,7 +309,17 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             .get(`/usuarios/${createRes.body.id}`)
             .set("Authorization", `Bearer ${accessToken}`);
 
-        expect(getRes.status).toBe(400);
-        expect(getRes.body.message).toBe("Usuário não encontrado");
+        expect(getRes.status).toBe(200);
+        expect(getRes.body.ativo).toBe(false);
+
+        const loginRes = await request(app)
+            .post("/auth/login")
+            .send({
+                email: "deletar-usuario-rt@teste.com",
+                senha: "senha123",
+            });
+
+        expect(loginRes.status).toBe(403);
+        expect(loginRes.body.message).toBe("Usuário inativo");
     });
 });

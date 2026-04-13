@@ -23,12 +23,16 @@ services:
     ports:
       - "${PORT}:${PORT}"
     environment:
+      PORT: ${PORT}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       DB_NAME: ${DB_NAME}
       NODE_ENV: ${NODE_ENV}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DB_LOGGING: ${DB_LOGGING}
 
   pgadmin:
     image: dpage/pgadmin4

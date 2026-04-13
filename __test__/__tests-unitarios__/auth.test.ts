@@ -8,6 +8,8 @@ let authService: AuthService;
 let mockDataSource: any;
 
 beforeAll(() => {
+    process.env.JWT_ACCESS_SECRET = "test-access-secret";
+    process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
     mockDataSource = {
         getRepository: jest.fn().mockReturnValue({
             findOne: jest.fn(),
@@ -58,5 +60,77 @@ describe("Testes de Autenticação Unitários", () => {
 
         await expect(authService.login({ email: "invalido@teste.com", senha: "123" }))
             .rejects.toThrow("Email ou senha inválidos");
+    });
+
+    test("Deve bloquear usuário inativo no login", async () => {
+        mockDataSource.getRepository().findOne.mockResolvedValue({
+            id: "user-123",
+            nome: "Usuario Inativo",
+            email: "inativo@teste.com",
+            senha_hash: "$2a$10$hashed_senha",
+            perfil: Perfil.SOLICITANTE,
+            setor: "TI",
+            ativo: false
+        });
+
+        await expect(authService.login({ email: "inativo@teste.com", senha: "senha123" }))
+            .rejects.toThrow("Usuário inativo");
+    });
+
+    test("Deve rejeitar senha incorreta no login", async () => {
+        mockDataSource.getRepository().findOne.mockResolvedValue({
+            id: "user-123",
+            nome: "Usuario Teste",
+            email: "teste@teste.com",
+            senha_hash: "$2a$10$hashed_senha",
+            perfil: Perfil.SOLICITANTE,
+            setor: "TI",
+            ativo: true
+        });
+
+        jest.spyOn(bcrypt, "compare").mockImplementation(() => Promise.resolve(false));
+
+        await expect(authService.login({ email: "teste@teste.com", senha: "senha_errada" }))
+            .rejects.toThrow("Email ou senha inválidos");
+    });
+
+    test("Deve gerar novos tokens no refresh com sucesso", async () => {
+        mockDataSource.getRepository().findOne.mockResolvedValue({
+            id: "user-123",
+            nome: "Usuario Teste",
+            email: "teste@teste.com",
+            perfil: Perfil.SUPERVISOR,
+            setor: "TI",
+            ativo: true
+        });
+
+        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123" } as never);
+        jest.spyOn(jwt, "sign")
+            .mockReturnValueOnce("new_access_token" as never)
+            .mockReturnValueOnce("new_refresh_token" as never);
+
+        const result = await authService.refresh("refresh_token_valido");
+
+        expect(result).toEqual({
+            accessToken: "new_access_token",
+            refreshToken: "new_refresh_token"
+        });
+    });
+
+    test("Deve falhar no refresh com token inválido", async () => {
+        jest.spyOn(jwt, "verify").mockImplementation(() => {
+            throw new Error("invalid token");
+        });
+
+        await expect(authService.refresh("token_invalido"))
+            .rejects.toThrow("Refresh Token inválido ou expirado");
+    });
+
+    test("Deve falhar no refresh com usuário inexistente ou inativo", async () => {
+        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123" } as never);
+        mockDataSource.getRepository().findOne.mockResolvedValue(null);
+
+        await expect(authService.refresh("refresh_token_valido"))
+            .rejects.toThrow("Usuário inválido ou inativo");
     });
 });

@@ -20,10 +20,10 @@ export class Equipamento {
   localizacao!: string;
 
   @Column({ type: "varchar", nullable: true })
-  fabricante!: string;
+  fabricante!: string | null;
 
   @Column({ type: "varchar", nullable: true })
-  modelo!: string;
+  modelo!: string | null;
 
   @Column({ type: "boolean", default: true })
   ativo!: boolean;

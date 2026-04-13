@@ -34,7 +34,7 @@ export class HistoricoOS {
     ordemServico!: Relation<OrdemServico>;
 
   @ManyToOne(() => Usuario, (usuario) => usuario.historicosOS, {
-    onDelete: "CASCADE",
+    onDelete: "NO ACTION",
   })
   @JoinColumn({ name: "usuario_id" })
     usuario!: Relation<Usuario>;

@@ -11,6 +11,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
     beforeAll(async () => {
         if (!appDataSource.isInitialized) {
             await appDataSource.initialize();
+            await appDataSource.runMigrations();
         }
     });
 
@@ -39,6 +40,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
         await repo.save({
             nome: "Usuario Sucesso",
             email,
+            matricula: "AUTH-RT-001",
             senha_hash: senhaHash,
             perfil: Perfil.SOLICITANTE,
             setor: "TI",
@@ -68,6 +70,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
          await repo.save({
              nome: "Usuario Falha",
              email,
+             matricula: "AUTH-RT-002",
              senha_hash: senhaHash,
              perfil: Perfil.SOLICITANTE,
              setor: "TI",
@@ -96,6 +99,7 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
         await repo.save({
             nome: "Usuario Refresh",
             email,
+            matricula: "AUTH-RT-003",
             senha_hash: senhaHash,
             perfil: Perfil.SOLICITANTE,
             setor: "TI",

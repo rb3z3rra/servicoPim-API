@@ -1,329 +1,292 @@
-import { jest } from '@jest/globals';
-import { UsuarioService } from "../../src/services/UsuarioService.js";
-import { Usuario } from "../../src/entities/Usuario.js";
-import { Perfil } from "../../src/types/usr_perfil.js";
+import { jest } from "@jest/globals";
 import bcrypt from "bcryptjs";
+import { UsuarioService } from "../../src/services/UsuarioService.js";
+import { Perfil } from "../../src/types/usr_perfil.js";
+
+const userRepo = {
+  findOne: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  find: jest.fn(),
+};
+
+const mockDataSource = {
+  getRepository: jest.fn(() => userRepo),
+};
 
 let usuarioService: UsuarioService;
-let mockDataSource: any;
 
 beforeAll(() => {
-    mockDataSource = {
-        getRepository: jest.fn().mockReturnValue({
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            find: jest.fn(),
-            remove: jest.fn()
-        })
-    };
-    usuarioService = new UsuarioService(mockDataSource);
+  usuarioService = new UsuarioService(mockDataSource as never);
 });
 
 beforeEach(() => {
-    jest.clearAllMocks();
+  userRepo.findOne.mockReset();
+  userRepo.create.mockReset();
+  userRepo.save.mockReset();
+  userRepo.find.mockReset();
 });
 
-describe("Testes CRUD de Usuários", () => {
+describe("UsuarioService", () => {
+  test("lista todos os usuários", async () => {
+    userRepo.find.mockResolvedValue([
+      { id: "1", nome: "A" },
+      { id: "2", nome: "B" },
+    ]);
 
-    describe("CREATE - Criar usuários", () => {
-        test("Deve criar um novo usuário com sucesso", async () => {
-            const newUser = {
-                nome: "João Silva",
-                email: "joao.silva@email.com",
-                senha_hash: "senha123",
-                perfil: Perfil.SOLICITANTE,
-                setor: "TI",
-                ativo: true
-            };
+    const result = await usuarioService.getAll();
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = "user-uuid-1";
-                entity.created_at = new Date();
-                return entity;
-            });
+    expect(result).toHaveLength(2);
+  });
 
-            const result = await usuarioService.createUser(newUser as Usuario);
-
-            expect(result).toHaveProperty("id");
-            expect(result.nome).toBe("João Silva");
-            expect(result.email).toBe("joao.silva@email.com");
-            expect(result.perfil).toBe(Perfil.SOLICITANTE);
-            expect(result.ativo).toBe(true);
-        });
-
-        test("Deve criar múltiplos usuários com IDs únicos", async () => {
-            const user1Data = { nome: "Maria Santos", email: "maria@email.com", senha_hash: "senha123", perfil: Perfil.TECNICO, setor: "Manutenção", ativo: true };
-            const user2Data = { nome: "Pedro Costa", email: "pedro@email.com", senha_hash: "senha123", perfil: Perfil.SUPERVISOR, setor: "TI", ativo: true };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            let userIdCounter = 1;
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = `user-uuid-${++userIdCounter}`;
-                entity.created_at = new Date();
-                return entity;
-            });
-
-            const user1 = await usuarioService.createUser(user1Data as Usuario);
-            const user2 = await usuarioService.createUser(user2Data as Usuario);
-
-            expect(user1.id).toBe("user-uuid-2");
-            expect(user2.id).toBe("user-uuid-3");
-        });
-
-        test("Deve lançar erro ao criar usuário com email já existente", async () => {
-            const newUser = {
-                nome: "Carlos Oliveira",
-                email: "joao.silva@email.com",
-                senha_hash: "senha123",
-                perfil: Perfil.SOLICITANTE,
-                setor: "RH",
-                ativo: true
-            };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue({ id: "user-uuid-1", email: "joao.silva@email.com" });
-
-            await expect(usuarioService.createUser(newUser as Usuario)).rejects.toThrow("Email já cadastrado");
-        });
+  test("retorna usuário por email com seleção esperada", async () => {
+    userRepo.findOne.mockResolvedValue({
+      id: "user-1",
+      nome: "Joao",
+      email: "joao@teste.com",
+      matricula: "MAT-001",
+      perfil: Perfil.SOLICITANTE,
+      setor: "TI",
+      ativo: true,
+      created_at: new Date(),
     });
 
-    describe("READ - Listar usuários", () => {
-        test("Deve listar todos os usuários", async () => {
-            const mockUsers = [
-                { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() },
-                { id: "user-uuid-2", nome: "Maria Santos", email: "maria@email.com", perfil: Perfil.TECNICO, setor: "Manutenção", ativo: true, created_at: new Date() }
-            ];
+    const result = await usuarioService.getByEmail("joao@teste.com");
 
-            mockDataSource.getRepository().find.mockResolvedValue(mockUsers);
+    expect(result.email).toBe("joao@teste.com");
+    expect(userRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: "joao@teste.com" },
+      })
+    );
+  });
 
-            const allUsers = await usuarioService.getAll();
+  test("falha ao buscar usuário por email inexistente", async () => {
+    userRepo.findOne.mockResolvedValue(null);
 
-            expect(allUsers).toHaveLength(2);
-            expect(allUsers[0]).toMatchObject({
-                id: "user-uuid-1",
-                nome: "João Silva"
-            });
-        });
+    await expect(usuarioService.getByEmail("naoexiste@teste.com")).rejects.toThrow(
+      "Usuário não encontrado"
+    );
+  });
 
-        test("Deve retornar array vazio se não houver usuários", async () => {
-            mockDataSource.getRepository().find.mockResolvedValue([]);
+  test("falha ao buscar usuário por id inexistente", async () => {
+    userRepo.findOne.mockResolvedValue(null);
 
-            const allUsers = await usuarioService.getAll();
+    await expect(usuarioService.getById("user-404")).rejects.toThrow(
+      "Usuário não encontrado"
+    );
+  });
 
-            expect(allUsers).toHaveLength(0);
-            expect(allUsers).toEqual([]);
-        });
+  test("cria usuario com hash de senha", async () => {
+    userRepo.findOne.mockResolvedValue(null);
+    userRepo.create.mockImplementation((data) => ({ ...data }));
+    userRepo.save.mockImplementation(async (data) => ({
+      id: "user-1",
+      created_at: new Date(),
+      ...data,
+    }));
 
-        test("Deve buscar usuário por ID existente", async () => {
-            const mockUser = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockUser);
-
-            const user = await usuarioService.getById("user-uuid-1");
-
-            expect(user).toBeDefined();
-            expect(user.id).toBe("user-uuid-1");
-            expect(user.nome).toBe("João Silva");
-        });
-
-        test("Deve lançar erro ao buscar ID inexistente", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-
-            await expect(usuarioService.getById("invalid-uuid")).rejects.toThrow("Usuário não encontrado");
-        });
+    const result = await usuarioService.createUser({
+      nome: "Joao Silva",
+      email: "joao@teste.com",
+      matricula: "MAT-001",
+      senha: "senha123",
+      perfil: Perfil.SOLICITANTE,
+      setor: "TI",
+      ativo: true,
     });
 
-    describe("UPDATE - Atualizar usuários", () => {
-        test("Deve atualizar usuário existente com sucesso", async () => {
-            const existingUser = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
-            const updateData = { nome: "João Silva Atualizado", ativo: false };
+    expect(result).toEqual(
+      expect.objectContaining({
+        nome: "Joao Silva",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+      })
+    );
+    expect(result.senha_hash).not.toBe("senha123");
+    await expect(bcrypt.compare("senha123", result.senha_hash)).resolves.toBe(true);
+  });
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(existingUser);
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => entity);
+  test("cria usuário aplicando defaults de setor e ativo", async () => {
+    userRepo.findOne.mockResolvedValue(null);
+    userRepo.create.mockImplementation((data) => ({ ...data }));
+    userRepo.save.mockImplementation(async (data) => data);
 
-            const updated = await usuarioService.updateUser("user-uuid-1", updateData);
-
-            expect(updated).toMatchObject({ ...existingUser, ...updateData });
-            expect(updated.id).toBe("user-uuid-1");
-        });
-
-        test("Deve atualizar apenas campos específicos", async () => {
-            const existingUser = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
-            const updateData = { ativo: false };
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(existingUser);
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => entity);
-
-            const updated = await usuarioService.updateUser("user-uuid-1", updateData);
-
-            expect(updated.ativo).toBe(false);
-            expect(updated.nome).toBe("João Silva"); // Mantém o nome original
-        });
-
-        test("Deve lançar erro ao tentar atualizar ID inexistente", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-
-            await expect(usuarioService.updateUser("invalid-uuid", { nome: "Teste" })).rejects.toThrow("Usuário não encontrado");
-        });
-
-        test("Deve lançar erro ao tentar atualizar para email já existente", async () => {
-            const existingUser = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
-            const updateData = { email: "maria@email.com" };
-
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(existingUser) // para getById
-                .mockResolvedValueOnce({ id: "user-uuid-2", email: "maria@email.com" }); // para verificar duplicidade
-
-            await expect(usuarioService.updateUser("user-uuid-1", updateData)).rejects.toThrow("Email já cadastrado");
-        });
+    const result = await usuarioService.createUser({
+      nome: "Sem Defaults Explícitos",
+      email: "default@teste.com",
+      matricula: "MAT-DEFAULT",
+      senha: "senha123",
+      perfil: Perfil.SOLICITANTE,
     });
 
-    describe("DELETE - Remover usuários", () => {
-        test("Deve deletar usuário existente com sucesso", async () => {
-            const existingUser = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
+    expect(result.setor).toBeNull();
+    expect(result.ativo).toBe(true);
+  });
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(existingUser);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
-
-            await expect(usuarioService.deleteUser("user-uuid-1")).resolves.toBeUndefined();
-
-            expect(mockDataSource.getRepository().remove).toHaveBeenCalledWith(existingUser);
-        });
-
-        test("Deve lançar erro ao tentar deletar ID inexistente", async () => {
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-
-            await expect(usuarioService.deleteUser("invalid-uuid")).rejects.toThrow("Usuário não encontrado");
-        });
-
-        test("Deve permitir deletar múltiplos usuários sequencialmente", async () => {
-            const user1 = { id: "user-uuid-1", nome: "João Silva", email: "joao@email.com", perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true, created_at: new Date() };
-            const user2 = { id: "user-uuid-2", nome: "Maria Santos", email: "maria@email.com", perfil: Perfil.TECNICO, setor: "Manutenção", ativo: true, created_at: new Date() };
-
-            mockDataSource.getRepository().findOne
-                .mockResolvedValueOnce(user1)
-                .mockResolvedValueOnce(user2);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
-
-            await expect(usuarioService.deleteUser("user-uuid-1")).resolves.toBeUndefined();
-            await expect(usuarioService.deleteUser("user-uuid-2")).resolves.toBeUndefined();
-
-            expect(mockDataSource.getRepository().remove).toHaveBeenCalledTimes(2);
-        });
+  test("falha ao criar usuario com email duplicado", async () => {
+    userRepo.findOne.mockResolvedValue({
+      id: "existing-user",
+      email: "duplicado@teste.com",
+      matricula: "MAT-OLD",
     });
 
-    describe("Hash de Senha (Bcrypt)", () => {
-        test("Deve gerar hash da senha ao criar usuário", async () => {
-            const senhaOriginal = "minhaSenha123";
-            const newUser = {
-                nome: "Teste Hash",
-                email: "hash@email.com",
-                senha_hash: senhaOriginal,
-                perfil: Perfil.SOLICITANTE,
-                setor: "TI",
-                ativo: true
-            };
+    await expect(
+      usuarioService.createUser({
+        nome: "Duplicado",
+        email: "duplicado@teste.com",
+        matricula: "MAT-DUP",
+        senha: "senha123",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+      })
+    ).rejects.toThrow("Email já cadastrado");
+  });
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = "user-uuid-hash";
-                entity.created_at = new Date();
-                return entity;
-            });
+  test("atualiza senha quando campo senha é enviado", async () => {
+    userRepo.findOne
+      .mockResolvedValueOnce({
+        id: "user-1",
+        nome: "Joao",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+        ativo: true,
+        senha_hash: "hash-antigo",
+      })
+      .mockResolvedValueOnce(null);
+    userRepo.save.mockImplementation(async (data) => data);
 
-            const result = await usuarioService.createUser(newUser as Usuario);
-
-            // A senha salva NÃO deve ser a original (deve ter sido hasheada)
-            expect(result.senha_hash).not.toBe(senhaOriginal);
-            // O hash gerado deve ser válido com bcrypt
-            const senhaConfere = await bcrypt.compare(senhaOriginal, result.senha_hash);
-            expect(senhaConfere).toBe(true);
-        });
-
-        test("Deve gerar hashes diferentes para a mesma senha (salt)", async () => {
-            const senha = "mesmaSenha123";
-
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-
-            let savedEntities: any[] = [];
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = `user-uuid-${savedEntities.length + 1}`;
-                entity.created_at = new Date();
-                savedEntities.push({ ...entity });
-                return entity;
-            });
-
-            const user1Data = { nome: "User 1", email: "user1@email.com", senha_hash: senha, perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true };
-            const user2Data = { nome: "User 2", email: "user2@email.com", senha_hash: senha, perfil: Perfil.SOLICITANTE, setor: "TI", ativo: true };
-
-            const user1 = await usuarioService.createUser(user1Data as Usuario);
-            const user2 = await usuarioService.createUser(user2Data as Usuario);
-
-            // Hashes devem ser diferentes por causa do salt
-            expect(user1.senha_hash).not.toBe(user2.senha_hash);
-            // Ambos devem ser válidos
-            expect(await bcrypt.compare(senha, user1.senha_hash)).toBe(true);
-            expect(await bcrypt.compare(senha, user2.senha_hash)).toBe(true);
-        });
+    const result = await usuarioService.updateUser("user-1", {
+      senha: "novaSenha123",
+      setor: "RH",
     });
 
-    describe("Testes integrados (CRUD completo)", () => {
-        test("Deve realizar fluxo completo de CRUD", async () => {
-            // CREATE
-            const newUserData = {
-                nome: "Ana Paula",
-                email: "ana.paula@email.com",
-                senha_hash: "senha123",
-                perfil: Perfil.SUPERVISOR,
-                setor: "TI",
-                ativo: true
-            };
+    expect(result.setor).toBe("RH");
+    expect(result.senha_hash).not.toBe("hash-antigo");
+    await expect(bcrypt.compare("novaSenha123", result.senha_hash)).resolves.toBe(true);
+  });
 
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            mockDataSource.getRepository().create.mockImplementation((data: any) => ({ ...data }));
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                entity.id = "user-uuid-4";
-                entity.created_at = new Date();
-                return entity;
-            });
+  test("atualiza email para um valor único", async () => {
+    userRepo.findOne
+      .mockResolvedValueOnce({
+        id: "user-1",
+        nome: "Joao",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+        ativo: true,
+        senha_hash: "hash-antigo",
+      })
+      .mockResolvedValueOnce(null);
+    userRepo.save.mockImplementation(async (data) => data);
 
-            const newUser = await usuarioService.createUser(newUserData as Usuario);
-            expect(newUser.id).toBe("user-uuid-4");
-            expect(newUser.nome).toBe("Ana Paula");
-
-            // READ
-            const mockUser = { id: "user-uuid-4", ...newUserData, created_at: new Date() };
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockUser);
-
-            const found = await usuarioService.getById("user-uuid-4");
-            expect(found.nome).toBe("Ana Paula");
-
-            // UPDATE
-            const updateData = { ativo: false };
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockUser);
-            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
-                Object.assign(entity, updateData);
-                return entity;
-            });
-
-            const updated = await usuarioService.updateUser("user-uuid-4", updateData);
-            expect(updated.ativo).toBe(false);
-
-            // DELETE
-            mockDataSource.getRepository().findOne.mockResolvedValue(mockUser);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
-
-            await expect(usuarioService.deleteUser("user-uuid-4")).resolves.toBeUndefined();
-
-            // Verificar exclusão - deve gerar um erro ao tentar encontrar novamente.
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            await expect(usuarioService.getById("user-uuid-4")).rejects.toThrow("Usuário não encontrado");
-        });
+    const result = await usuarioService.updateUser("user-1", {
+      email: "novo@teste.com",
     });
 
+    expect(result.email).toBe("novo@teste.com");
+  });
+
+  test("atualiza matrícula para um valor único", async () => {
+    userRepo.findOne
+      .mockResolvedValueOnce({
+        id: "user-1",
+        nome: "Joao",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+        ativo: true,
+        senha_hash: "hash-antigo",
+      })
+      .mockResolvedValueOnce(null);
+    userRepo.save.mockImplementation(async (data) => data);
+
+    const result = await usuarioService.updateUser("user-1", {
+      matricula: "MAT-002",
+    });
+
+    expect(result.matricula).toBe("MAT-002");
+  });
+
+  test("desativa usuario em vez de remover fisicamente", async () => {
+    userRepo.findOne.mockResolvedValue({
+      id: "user-1",
+      nome: "Joao",
+      email: "joao@teste.com",
+      matricula: "MAT-001",
+      perfil: Perfil.SOLICITANTE,
+      setor: "TI",
+      ativo: true,
+    });
+    userRepo.save.mockImplementation(async (data) => data);
+
+    await expect(usuarioService.deleteUser("user-1")).resolves.toBeUndefined();
+    expect(userRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "user-1", ativo: false })
+    );
+  });
+
+  test("falha ao atualizar email para outro já existente", async () => {
+    userRepo.findOne
+      .mockResolvedValueOnce({
+        id: "user-1",
+        nome: "Joao",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+        ativo: true,
+        senha_hash: "hash-antigo",
+      })
+      .mockResolvedValueOnce({
+        id: "user-2",
+        email: "maria@teste.com",
+      });
+
+    await expect(
+      usuarioService.updateUser("user-1", { email: "maria@teste.com" })
+    ).rejects.toThrow("Email já cadastrado");
+  });
+
+  test("falha ao criar usuario com matrícula duplicada", async () => {
+    userRepo.findOne.mockResolvedValue({ id: "existing-user", matricula: "MAT-001" });
+
+    await expect(
+      usuarioService.createUser({
+        nome: "Duplicado",
+        email: "duplicado-matricula@teste.com",
+        matricula: "MAT-001",
+        senha: "senha123",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+      })
+    ).rejects.toThrow("Matrícula já cadastrada");
+  });
+
+  test("falha ao atualizar matrícula para outra já existente", async () => {
+    userRepo.findOne
+      .mockResolvedValueOnce({
+        id: "user-1",
+        nome: "Joao",
+        email: "joao@teste.com",
+        matricula: "MAT-001",
+        perfil: Perfil.SOLICITANTE,
+        setor: "TI",
+        ativo: true,
+        senha_hash: "hash-antigo",
+      })
+      .mockResolvedValueOnce({
+        id: "user-2",
+        matricula: "MAT-002",
+      });
+
+    await expect(
+      usuarioService.updateUser("user-1", { matricula: "MAT-002" })
+    ).rejects.toThrow("Matrícula já cadastrada");
+  });
 });
