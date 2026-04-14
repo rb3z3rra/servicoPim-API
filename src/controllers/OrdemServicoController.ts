@@ -25,6 +25,7 @@ export class OrdemServicoController {
     const ordensServico = await ordemServicoService.getAll({
       status: filtros.status,
       prioridade: filtros.prioridade,
+      busca: filtros.busca,
     });
     return res.status(200).json(ordensServico);
   }

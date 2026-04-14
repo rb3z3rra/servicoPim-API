@@ -79,6 +79,11 @@ export class EquipamentoService {
   async deleteEquipamento(id: number): Promise<void> {
     const equipamento = await this.getById(id);
 
-    await this.equipamentoRepo.remove(equipamento);
+    if (!equipamento.ativo) {
+      return;
+    }
+
+    equipamento.ativo = false;
+    await this.equipamentoRepo.save(equipamento);
   }
 }

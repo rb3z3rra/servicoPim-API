@@ -1,5 +1,5 @@
 import { AppError } from '../errors/AppError.js';
-import type { DataSource, EntityManager, Repository } from "typeorm";
+import { Brackets, type DataSource, type EntityManager, type Repository } from "typeorm";
 import { OrdemServico } from "../entities/OrdemServico.js";
 import { Equipamento } from "../entities/Equipamento.js";
 import { Usuario } from "../entities/Usuario.js";
@@ -27,6 +27,7 @@ type AtualizarStatusDTO = {
 type ListarOrdensServicoFilters = {
   status: StatusOs | undefined;
   prioridade: Prioridade | undefined;
+  busca?: string | undefined;
 };
 
 type ConcluirOrdemServicoDTO = {
@@ -52,8 +53,43 @@ export class OrdemServicoService {
   }
 
   async getAll(
-    filters: ListarOrdensServicoFilters = { status: undefined, prioridade: undefined }
+    filters: ListarOrdensServicoFilters = {
+      status: undefined,
+      prioridade: undefined,
+      busca: undefined,
+    }
   ): Promise<OrdemServico[]> {
+    const busca = filters.busca?.trim();
+
+    if (busca) {
+      return await this.ordemServicoRepo
+        .createQueryBuilder("ordemServico")
+        .leftJoinAndSelect("ordemServico.equipamento", "equipamento")
+        .leftJoinAndSelect("ordemServico.solicitante", "solicitante")
+        .leftJoinAndSelect("ordemServico.tecnico", "tecnico")
+        .where(
+          new Brackets((query) => {
+            query
+              .where("ordemServico.numero ILIKE :busca", {
+                busca: `%${busca}%`,
+              })
+              .orWhere("ordemServico.descricao_falha ILIKE :busca", {
+                busca: `%${busca}%`,
+              });
+          })
+        )
+        .andWhere(
+          filters.status ? "ordemServico.status = :status" : "1=1",
+          filters.status ? { status: filters.status } : {}
+        )
+        .andWhere(
+          filters.prioridade ? "ordemServico.prioridade = :prioridade" : "1=1",
+          filters.prioridade ? { prioridade: filters.prioridade } : {}
+        )
+        .orderBy("ordemServico.abertura_em", "DESC")
+        .getMany();
+    }
+
     return await this.ordemServicoRepo.find({
       where: {
         ...(filters.status ? { status: filters.status } : {}),

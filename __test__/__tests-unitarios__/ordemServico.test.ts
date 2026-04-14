@@ -12,11 +12,20 @@ import { HistoricoOSService } from "../../src/services/HistoricoOSService.js";
 const ordemRepo = {
   findOne: jest.fn(),
   find: jest.fn(),
+  createQueryBuilder: jest.fn(),
   create: jest.fn(),
   save: jest.fn(),
   manager: {
     transaction: jest.fn(),
   },
+};
+
+const queryBuilder = {
+  leftJoinAndSelect: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  getMany: jest.fn(),
 };
 
 const equipamentoRepo = {
@@ -81,6 +90,11 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   ordemRepo.manager.transaction.mockImplementation(async (callback) => callback(mockManager));
+  ordemRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+  queryBuilder.leftJoinAndSelect.mockReturnThis();
+  queryBuilder.where.mockReturnThis();
+  queryBuilder.andWhere.mockReturnThis();
+  queryBuilder.orderBy.mockReturnThis();
 });
 
 describe("OrdemServicoService", () => {
@@ -114,6 +128,24 @@ describe("OrdemServicoService", () => {
           prioridade: Prioridade.ALTA,
         },
       })
+    );
+  });
+
+  test("lista ordens de serviço com busca por número ou descrição", async () => {
+    queryBuilder.getMany.mockResolvedValue([{ id: "os-busca" }]);
+
+    const result = await ordemServicoService.getAll({
+      status: StatusOs.ABERTA,
+      prioridade: Prioridade.ALTA,
+      busca: "servidor",
+    });
+
+    expect(result).toEqual([{ id: "os-busca" }]);
+    expect(ordemRepo.createQueryBuilder).toHaveBeenCalledWith("ordemServico");
+    expect(queryBuilder.getMany).toHaveBeenCalled();
+    expect(queryBuilder.orderBy).toHaveBeenCalledWith(
+      "ordemServico.abertura_em",
+      "DESC"
     );
   });
 

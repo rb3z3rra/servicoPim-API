@@ -7,20 +7,24 @@ import { Perfil } from "../../src/types/usr_perfil.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
 
-let accessToken: string;
+let supervisorToken: string;
+let tecnicoToken: string;
 
-async function loginAndGetToken(): Promise<string> {
-    const email = "admin-equip@teste.com";
+async function loginAndGetToken(
+    email: string,
+    matricula: string,
+    perfil: Perfil
+): Promise<string> {
     const repo = appDataSource.getRepository(Usuario);
     await repo.delete({ email });
 
     const senhaHash = await bcrypt.hash("senha123", 10);
     await repo.save({
-        nome: "Admin Equip",
+        nome: perfil === Perfil.TECNICO ? "Tecnico Equip" : "Admin Equip",
         email,
-        matricula: "EQP-RT-001",
+        matricula,
         senha_hash: senhaHash,
-        perfil: Perfil.SUPERVISOR,
+        perfil,
         setor: "TI",
         ativo: true,
     });
@@ -38,7 +42,16 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
             await appDataSource.initialize();
             await appDataSource.runMigrations();
         }
-        accessToken = await loginAndGetToken();
+        supervisorToken = await loginAndGetToken(
+            "admin-equip@teste.com",
+            "EQP-RT-001",
+            Perfil.SUPERVISOR
+        );
+        tecnicoToken = await loginAndGetToken(
+            "tecnico-equip@teste.com",
+            "EQP-RT-002",
+            Perfil.TECNICO
+        );
     });
 
     afterAll(async () => {
@@ -60,7 +73,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("POST /equipamentos - Deve criar um novo equipamento com sucesso", async () => {
         const response = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-001",
                 nome: "Notebook Dell",
@@ -81,7 +94,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("POST /equipamentos - Deve falhar com código duplicado", async () => {
         await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-DUP",
                 nome: "Equip Original",
@@ -91,7 +104,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
 
         const response = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-DUP",
                 nome: "Equip Duplicado",
@@ -119,7 +132,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("POST /equipamentos - Deve falhar com dados inválidos", async () => {
         const response = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "A",
                 nome: "",
@@ -129,11 +142,26 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
         expect(response.body.message).toBe("Dados inválidos");
     });
 
+    test("POST /equipamentos - Deve falhar para técnico", async () => {
+        const response = await request(app)
+            .post("/equipamentos")
+            .set("Authorization", `Bearer ${tecnicoToken}`)
+            .send({
+                codigo: "TESTE-BLOQ-TEC",
+                nome: "Equip Técnico",
+                tipo: "Monitor",
+                localizacao: "Sala 302",
+            });
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Acesso negado");
+    });
+
     // READ
     test("GET /equipamentos - Deve listar todos os equipamentos", async () => {
         await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-LIST",
                 nome: "Equip Lista",
@@ -143,7 +171,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
 
         const response = await request(app)
             .get("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
@@ -153,7 +181,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("GET /equipamentos/:id - Deve buscar equipamento por ID", async () => {
         const createRes = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-GETID",
                 nome: "Equip GetById",
@@ -163,7 +191,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
 
         const response = await request(app)
             .get(`/equipamentos/${createRes.body.id}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(createRes.body.id);
@@ -173,7 +201,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("GET /equipamentos/:id - Deve falhar com ID inexistente", async () => {
         const response = await request(app)
             .get("/equipamentos/999999")
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Equipamento não encontrado");
@@ -183,7 +211,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
     test("PUT /equipamentos/:id - Deve atualizar equipamento", async () => {
         const createRes = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-UPD",
                 nome: "Antes Update",
@@ -193,7 +221,7 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
 
         const response = await request(app)
             .put(`/equipamentos/${createRes.body.id}`)
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 nome: "Depois Update",
                 localizacao: "Sala 999",
@@ -205,11 +233,33 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
         expect(response.body.codigo).toBe("TESTE-UPD");
     });
 
-    // DELETE
-    test("DELETE /equipamentos/:id - Deve deletar equipamento", async () => {
+    test("PUT /equipamentos/:id - Deve falhar para técnico", async () => {
         const createRes = await request(app)
             .post("/equipamentos")
-            .set("Authorization", `Bearer ${accessToken}`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
+            .send({
+                codigo: "TESTE-UPD-BLOQ",
+                nome: "Antes Update Técnico",
+                tipo: "Monitor",
+                localizacao: "Sala 103",
+            });
+
+        const response = await request(app)
+            .put(`/equipamentos/${createRes.body.id}`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
+            .send({
+                nome: "Depois Update Técnico",
+            });
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Acesso negado");
+    });
+
+    // DELETE
+    test("DELETE /equipamentos/:id - Deve desativar equipamento", async () => {
+        const createRes = await request(app)
+            .post("/equipamentos")
+            .set("Authorization", `Bearer ${supervisorToken}`)
             .send({
                 codigo: "TESTE-DEL",
                 nome: "Para Deletar",
@@ -219,15 +269,15 @@ describe("Testes de Integração - Rotas de Equipamentos (Banco Real)", () => {
 
         const response = await request(app)
             .delete(`/equipamentos/${createRes.body.id}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
         expect(response.status).toBe(204);
 
         const getRes = await request(app)
             .get(`/equipamentos/${createRes.body.id}`)
-            .set("Authorization", `Bearer ${accessToken}`);
+            .set("Authorization", `Bearer ${supervisorToken}`);
 
-        expect(getRes.status).toBe(400);
-        expect(getRes.body.message).toBe("Equipamento não encontrado");
+        expect(getRes.status).toBe(200);
+        expect(getRes.body.ativo).toBe(false);
     });
 });

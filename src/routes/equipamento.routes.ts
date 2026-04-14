@@ -14,7 +14,7 @@ const equipamentoController = new EquipamentoController();
 equipamentoRoutes.post(
   "/",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR),
   validarBody(createEquipamentoSchemaDTO),
   asyncHandler(equipamentoController.create.bind(equipamentoController))
 );
@@ -34,7 +34,7 @@ equipamentoRoutes.get(
 equipamentoRoutes.put(
   "/:id",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR),
   validarBody(updateEquipamentoSchemaDTO),
   asyncHandler(equipamentoController.update.bind(equipamentoController))
 );
