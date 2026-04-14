@@ -212,6 +212,34 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
         expect(response.body.every((os: any) => os.prioridade === "CRÍTICA")).toBe(true);
     });
 
+    test("GET /ordens-servico - Deve buscar por número ou descrição", async () => {
+        const createRes = await request(app)
+            .post("/ordens-servico")
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                equipamentoId,
+                tipo_manutencao: "CORRETIVA",
+                prioridade: "ALTA",
+                descricao_falha: "Falha específica no motor principal da esteira",
+            });
+
+        const byNumber = await request(app)
+            .get("/ordens-servico")
+            .query({ busca: createRes.body.numero })
+            .set("Authorization", `Bearer ${solicitanteToken}`);
+
+        expect(byNumber.status).toBe(200);
+        expect(byNumber.body.some((os: any) => os.id === createRes.body.id)).toBe(true);
+
+        const byDescription = await request(app)
+            .get("/ordens-servico")
+            .query({ busca: "motor principal" })
+            .set("Authorization", `Bearer ${solicitanteToken}`);
+
+        expect(byDescription.status).toBe(200);
+        expect(byDescription.body.some((os: any) => os.id === createRes.body.id)).toBe(true);
+    });
+
     test("GET /ordens-servico/:id - Deve buscar OS por ID", async () => {
         const createRes = await request(app)
             .post("/ordens-servico")

@@ -13,7 +13,6 @@ beforeAll(() => {
             create: jest.fn(),
             save: jest.fn(),
             find: jest.fn(),
-            remove: jest.fn()
         })
     };
     equipamentoService = new EquipamentoService(mockDataSource);
@@ -204,37 +203,39 @@ describe("Testes CRUD de Equipamentos", () => {
         });
     });
 
-    describe("DELETE - Remover equipamentos", () => {
-        test("Deve deletar equipamento existente com sucesso", async () => {
+    describe("DELETE - Desativar equipamentos", () => {
+        test("Deve desativar equipamento existente com sucesso", async () => {
             const existingEquipment = { id: 1, codigo: "TEC001", nome: "Teclado Mecânico", tipo: "Periférico", localizacao: "Escritório", ativo: true };
 
             mockDataSource.getRepository().findOne.mockResolvedValue(existingEquipment);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => entity);
 
             await expect(equipamentoService.deleteEquipamento(1)).resolves.toBeUndefined();
 
-            expect(mockDataSource.getRepository().remove).toHaveBeenCalledWith(existingEquipment);
+            expect(mockDataSource.getRepository().save).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 1, ativo: false })
+            );
         });
 
-        test("Deve lançar erro ao tentar deletar ID inexistente", async () => {
+        test("Deve lançar erro ao tentar desativar ID inexistente", async () => {
             mockDataSource.getRepository().findOne.mockResolvedValue(null);
 
             await expect(equipamentoService.deleteEquipamento(999)).rejects.toThrow("Equipamento não encontrado");
         });
 
-        test("Deve permitir deletar múltiplos equipamentos sequencialmente", async () => {
+        test("Deve permitir desativar múltiplos equipamentos sequencialmente", async () => {
             const equip1 = { id: 1, codigo: "TEC001", nome: "Teclado Mecânico", tipo: "Periférico", localizacao: "Escritório", ativo: true };
             const equip2 = { id: 2, codigo: "MOU001", nome: "Mouse", tipo: "Periférico", localizacao: "Escritório", ativo: true };
 
             mockDataSource.getRepository().findOne
                 .mockResolvedValueOnce(equip1)
                 .mockResolvedValueOnce(equip2);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => entity);
 
             await expect(equipamentoService.deleteEquipamento(1)).resolves.toBeUndefined();
             await expect(equipamentoService.deleteEquipamento(2)).resolves.toBeUndefined();
 
-            expect(mockDataSource.getRepository().remove).toHaveBeenCalledTimes(2);
+            expect(mockDataSource.getRepository().save).toHaveBeenCalledTimes(2);
         });
     });
 
@@ -278,15 +279,19 @@ describe("Testes CRUD de Equipamentos", () => {
             const updated = await equipamentoService.updateEquipamento(4, updateData);
             expect(updated.ativo).toBe(false);
 
-            // DELETE
+            // DELETE / DESATIVAR
             mockDataSource.getRepository().findOne.mockResolvedValue(mockEquipment);
-            mockDataSource.getRepository().remove.mockResolvedValue(undefined);
+            mockDataSource.getRepository().save.mockImplementation(async (entity: any) => {
+                Object.assign(entity, { ativo: false });
+                return entity;
+            });
 
             await expect(equipamentoService.deleteEquipamento(4)).resolves.toBeUndefined();
 
-            // Verificar exclusão - deve gerar um erro ao tentar encontrar novamente.
-            mockDataSource.getRepository().findOne.mockResolvedValue(null);
-            await expect(equipamentoService.getById(4)).rejects.toThrow("Equipamento não encontrado");
+            // Verificar desativação lógica.
+            mockDataSource.getRepository().findOne.mockResolvedValue({ ...mockEquipment, ativo: false });
+            const foundAfterDeactivate = await equipamentoService.getById(4);
+            expect(foundAfterDeactivate.ativo).toBe(false);
         });
     });
 
