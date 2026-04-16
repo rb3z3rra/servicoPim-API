@@ -85,6 +85,43 @@ export const listarOrdensServicoQuerySchemaDTO = z.object({
   ),
 });
 
+export const listarOrdensServicoQuerySchemaDTO = z.object({
+  status: z.preprocess(
+    (value) => {
+      if (value === "undefined" || value === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.enum(StatusOs).optional()
+  ),
+  prioridade: z.preprocess(
+    (value) => {
+      if (value === "undefined" || value === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.enum(Prioridade).optional()
+  ),
+  busca: z.preprocess(
+    (value) => {
+      if (value === "undefined") {
+        return undefined;
+      }
+
+      if (typeof value === "string" && value.trim() === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.string().trim().min(1).max(255).optional()
+  ),
+});
+
 export type CreateOrdemServicoSchemaDTO = z.infer<
   typeof createOrdemServicoSchemaDTO
 >;
