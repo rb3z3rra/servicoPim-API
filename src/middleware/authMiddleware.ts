@@ -32,6 +32,11 @@ export const ensureAuth: RequestHandler = (req, _res, next) => {
     return next(new AppError("Token ausente", 401));
   }
 
+  const token = authHeader.slice(7).trim();
+  if (!token) {
+    return next(new AppError("Token ausente", 401));
+  }
+
   try {
     const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as AuthPayload;
     req.auth = payload;

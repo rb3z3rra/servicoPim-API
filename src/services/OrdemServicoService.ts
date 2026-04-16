@@ -35,6 +35,12 @@ type ListarOrdensServicoFilters = {
   busca: string | undefined;
 };
 
+type ListarOrdensServicoFilters = {
+  status: StatusOs | undefined;
+  prioridade: Prioridade | undefined;
+  busca?: string | undefined;
+};
+
 type ConcluirOrdemServicoDTO = {
   descricao_servico: string;
   pecas_utilizadas?: string;
