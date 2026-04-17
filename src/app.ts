@@ -9,7 +9,7 @@ import { usuarioRoutes } from "./routes/usuario.routes.js";
 import { equipamentoRoutes } from "./routes/equipamento.routes.js";
 import { ordemServicoRoutes } from "./routes/ordemServico.routes.js";
 import { historicoRouter } from "./routes/HistoricoOSroutes.js";
-import { dashboardRoutes } from "./routes/dashboard.routes.js";
+
 import { errorMiddleware } from "./middleware/errorMiddleware.js";
 import { isTestEnv } from "./config/env.js";
 
@@ -61,7 +61,6 @@ export function createApp() {
   app.use("/equipamentos", equipamentoRoutes);
   app.use("/ordens-servico", ordemServicoRoutes);
   app.use("/historico-os", historicoRouter);
-  app.use("/dashboard", dashboardRoutes);
   app.use(errorMiddleware);
 
   return app;
