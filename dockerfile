@@ -8,7 +8,7 @@ COPY tsconfig.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build
+RUN npx tsc --skipLibCheck
 
 # STAGE 2 -  PRODUCTION
 FROM node:20-alpine AS production
