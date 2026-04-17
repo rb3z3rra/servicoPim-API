@@ -26,6 +26,12 @@ usuarioRoutes.get("/",
   asyncHandler(usuarioController.getAll.bind(usuarioController))
 );
 
+usuarioRoutes.get("/:id/detalhes",
+  ensureAuth,
+  ensureRole(Perfil.SUPERVISOR),
+  asyncHandler(usuarioController.getDetails.bind(usuarioController))
+);
+
 // GET /usuarios/:id — apenas SUPERVISOR pode buscar outro usuário pelo id
 usuarioRoutes.get("/:id",
   ensureAuth,

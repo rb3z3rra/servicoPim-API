@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/src/server.js",
     "db:migrate": "tsx src/scripts/runMigrations.ts",
+    "db:seed": "tsx src/scripts/seed.ts",
+    "db:seed:ordens": "tsx src/scripts/seedOrdensDemo.ts",
     "test": "npm run test:unit",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand __test__/__tests-unitarios__",
     "test:integration": "npm run test:integration:docker",

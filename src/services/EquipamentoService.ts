@@ -1,6 +1,14 @@
 import { AppError } from '../errors/AppError.js';
 import type { Repository, DataSource } from "typeorm";
 import { Equipamento } from "../entities/Equipamento.js";
+import { StatusOs } from "../types/os_status.js";
+
+type ListarEquipamentosFilters = {
+  busca?: string;
+  setor?: string;
+  ativo?: boolean;
+  comOsAbertas?: boolean;
+};
 
 export class EquipamentoService {
   private equipamentoRepo: Repository<Equipamento>;
@@ -9,8 +17,52 @@ export class EquipamentoService {
     this.equipamentoRepo = appDataSource.getRepository(Equipamento);
   }
 
-  async getAll(): Promise<Equipamento[]> {
-    return await this.equipamentoRepo.find();
+  async getAll(filters: ListarEquipamentosFilters = {}): Promise<Equipamento[]> {
+    const query = this.equipamentoRepo
+      .createQueryBuilder("equipamento")
+      .loadRelationCountAndMap(
+        "equipamento.os_abertas_count",
+        "equipamento.ordensServico",
+        "ordemAberta",
+        (qb) =>
+          qb.where("ordemAberta.status IN (:...statuses)", {
+            statuses: [StatusOs.ABERTA, StatusOs.EM_ANDAMENTO, StatusOs.AGUARDANDO_PECA],
+          })
+      )
+      .orderBy("equipamento.nome", "ASC");
+
+    if (filters.busca?.trim()) {
+      query.andWhere(
+        `(equipamento.codigo ILIKE :busca OR equipamento.nome ILIKE :busca OR equipamento.numero_patrimonio ILIKE :busca)`,
+        { busca: `%${filters.busca.trim()}%` }
+      );
+    }
+
+    if (filters.setor?.trim()) {
+      query.andWhere("equipamento.setor ILIKE :setor", {
+        setor: `%${filters.setor.trim()}%`,
+      });
+    }
+
+    if (typeof filters.ativo === "boolean") {
+      query.andWhere("equipamento.ativo = :ativo", { ativo: filters.ativo });
+    }
+
+    if (filters.comOsAbertas) {
+      query.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM ordem_servico ordem
+          WHERE ordem.equipamento_id = equipamento.id
+            AND ordem.status IN (:...statusesAbertos)
+        )`,
+        {
+          statusesAbertos: [StatusOs.ABERTA, StatusOs.EM_ANDAMENTO, StatusOs.AGUARDANDO_PECA],
+        }
+      );
+    }
+
+    return await query.getMany();
   }
 
   async getById(id: number): Promise<Equipamento> {
