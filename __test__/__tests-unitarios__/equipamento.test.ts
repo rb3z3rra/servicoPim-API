@@ -5,15 +5,30 @@ import { Equipamento } from "../../src/entities/Equipamento.js";
 let equipamentoService: EquipamentoService;
 let mockDataSource: any;
 let idCounter = 1;
+let queryBuilder: any;
+let repository: any;
 
 beforeAll(() => {
+    queryBuilder = {
+        loadRelationCountAndMap: jest.fn(),
+        orderBy: jest.fn(),
+        andWhere: jest.fn(),
+        getMany: jest.fn(),
+    };
+    queryBuilder.loadRelationCountAndMap.mockReturnValue(queryBuilder);
+    queryBuilder.orderBy.mockReturnValue(queryBuilder);
+    queryBuilder.andWhere.mockReturnValue(queryBuilder);
+
+    repository = {
+        findOne: jest.fn(),
+        create: jest.fn(),
+        save: jest.fn(),
+        find: jest.fn(),
+        createQueryBuilder: jest.fn(() => queryBuilder),
+    };
+
     mockDataSource = {
-        getRepository: jest.fn().mockReturnValue({
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            find: jest.fn(),
-        })
+        getRepository: jest.fn().mockReturnValue(repository)
     };
     equipamentoService = new EquipamentoService(mockDataSource);
 });
@@ -89,7 +104,7 @@ describe("Testes CRUD de Equipamentos", () => {
                 { id: 2, codigo: "MOU001", nome: "Mouse", tipo: "Periférico", localizacao: "Escritório", ativo: true }
             ];
 
-            mockDataSource.getRepository().find.mockResolvedValue(mockEquipments);
+            queryBuilder.getMany.mockResolvedValue(mockEquipments);
 
             const allEquipments = await equipamentoService.getAll();
 
@@ -101,7 +116,7 @@ describe("Testes CRUD de Equipamentos", () => {
         });
 
         test("Deve retornar array vazio se não houver equipamentos", async () => {
-            mockDataSource.getRepository().find.mockResolvedValue([]);
+            queryBuilder.getMany.mockResolvedValue([]);
 
             const allEquipments = await equipamentoService.getAll();
 

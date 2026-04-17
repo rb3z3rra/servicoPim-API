@@ -10,6 +10,7 @@ const historicoRepo = {
   find: jest.fn(),
   create: jest.fn(),
   save: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 const ordemServicoRepo = {
@@ -39,8 +40,24 @@ const dataSource = {
 };
 
 let service: HistoricoOSService;
+let queryBuilder: any;
 
 beforeAll(() => {
+  queryBuilder = {
+    leftJoinAndSelect: jest.fn(),
+    leftJoin: jest.fn(),
+    distinct: jest.fn(),
+    orderBy: jest.fn(),
+    andWhere: jest.fn(),
+    getMany: jest.fn(),
+    getOne: jest.fn(),
+  };
+  queryBuilder.leftJoinAndSelect.mockReturnValue(queryBuilder);
+  queryBuilder.leftJoin.mockReturnValue(queryBuilder);
+  queryBuilder.distinct.mockReturnValue(queryBuilder);
+  queryBuilder.orderBy.mockReturnValue(queryBuilder);
+  queryBuilder.andWhere.mockReturnValue(queryBuilder);
+  historicoRepo.createQueryBuilder.mockImplementation(() => queryBuilder);
   service = new HistoricoOSService(dataSource as never);
 });
 
@@ -61,7 +78,7 @@ describe("HistoricoOSService", () => {
 
     const defaultService = new HistoricoOSService();
 
-    historicoRepo.find.mockResolvedValue([]);
+    queryBuilder.getMany.mockResolvedValue([]);
     await defaultService.getAll();
 
     expect(spy).toHaveBeenCalled();
@@ -123,7 +140,7 @@ describe("HistoricoOSService", () => {
   });
 
   test("lista todos os históricos", async () => {
-    historicoRepo.find.mockResolvedValue([{ id: "hist-1" }]);
+    queryBuilder.getMany.mockResolvedValue([{ id: "hist-1" }]);
 
     const result = await service.getAll();
 
@@ -131,7 +148,7 @@ describe("HistoricoOSService", () => {
   });
 
   test("busca histórico por id", async () => {
-    historicoRepo.findOne.mockResolvedValue({ id: "hist-1" });
+    queryBuilder.getOne.mockResolvedValue({ id: "hist-1" });
 
     const result = await service.getById("hist-1");
 
@@ -139,13 +156,13 @@ describe("HistoricoOSService", () => {
   });
 
   test("falha ao buscar histórico inexistente", async () => {
-    historicoRepo.findOne.mockResolvedValue(null);
+    queryBuilder.getOne.mockResolvedValue(null);
 
     await expect(service.getById("hist-404")).rejects.toThrow("Histórico não encontrado");
   });
 
   test("lista histórico por OS", async () => {
-    historicoRepo.find.mockResolvedValue([{ id: "hist-os-1" }]);
+    queryBuilder.getMany.mockResolvedValue([{ id: "hist-os-1" }]);
 
     const result = await service.getByOsId("os-1");
 
@@ -153,7 +170,7 @@ describe("HistoricoOSService", () => {
   });
 
   test("lista histórico por usuário", async () => {
-    historicoRepo.find.mockResolvedValue([{ id: "hist-user-1" }]);
+    queryBuilder.getMany.mockResolvedValue([{ id: "hist-user-1" }]);
 
     const result = await service.getByUsuario("user-1");
 

@@ -5,6 +5,7 @@ import { Usuario } from "../../src/entities/Usuario.js";
 import { Equipamento } from "../../src/entities/Equipamento.js";
 import { OrdemServico } from "../../src/entities/OrdemServico.js";
 import { HistoricoOS } from "../../src/entities/HistoricoOS.js";
+import { ApontamentoOS } from "../../src/entities/ApontamentoOS.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
@@ -14,8 +15,11 @@ let solicitanteToken: string;
 let tecnicoToken: string;
 let solicitanteId: string;
 let tecnicoId: string;
+let outroTecnicoId: string;
 let equipamentoId: number;
 let osId: string;
+let osTransferidaId: string;
+let osNaoAcessivelId: string;
 
 async function criarUsuario(
     nome: string,
@@ -54,11 +58,13 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
 
         // Limpar dados de teste anteriores
         const historicoRepo = appDataSource.getRepository(HistoricoOS);
+        const apontamentoRepo = appDataSource.getRepository(ApontamentoOS);
         const osRepo = appDataSource.getRepository(OrdemServico);
         const equipRepo = appDataSource.getRepository(Equipamento);
         const userRepo = appDataSource.getRepository(Usuario);
 
         await historicoRepo.createQueryBuilder().delete().execute();
+        await apontamentoRepo.createQueryBuilder().delete().execute();
         await osRepo.createQueryBuilder().delete().execute();
         await equipRepo.delete({ codigo: Like("TESTE-HIST-%") });
         await userRepo.delete({ email: Like("%hist-rt@teste.com") });
@@ -81,6 +87,12 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
             "tecnico-hist-rt@teste.com",
             Perfil.TECNICO,
             "HIST-USER-003"
+        );
+        outroTecnicoId = await criarUsuario(
+            "Outro Tecnico Hist",
+            "outro-tecnico-hist-rt@teste.com",
+            Perfil.TECNICO,
+            "HIST-USER-004"
         );
 
         solicitanteToken = await login("solicitante-hist-rt@teste.com");
@@ -126,16 +138,69 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
             .patch(`/ordens-servico/${osId}/status`)
             .set("Authorization", `Bearer ${tecnicoToken}`)
             .send({ status: "AGUARDANDO_PECA" });
+
+        const osTransferidaRes = await request(app)
+            .post("/ordens-servico")
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                equipamentoId,
+                tipo_manutencao: "PREVENTIVA",
+                prioridade: "MÉDIA",
+                descricao_falha: "OS para técnico com apontamento e transferência",
+            });
+        osTransferidaId = osTransferidaRes.body.id;
+
+        await request(app)
+            .patch(`/ordens-servico/${osTransferidaId}/atribuir-tecnico`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
+            .send({ tecnicoId });
+
+        await request(app)
+            .patch(`/ordens-servico/${osTransferidaId}/iniciar`)
+            .set("Authorization", `Bearer ${tecnicoToken}`);
+
+        await request(app)
+            .post(`/ordens-servico/${osTransferidaId}/apontamentos/iniciar`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
+            .send({ observacao: "Apontamento do técnico original" });
+
+        await request(app)
+            .patch(`/ordens-servico/${osTransferidaId}/apontamentos/finalizar`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
+            .send({ observacao: "Apontamento encerrado antes da transferência" });
+
+        await request(app)
+            .patch(`/ordens-servico/${osTransferidaId}/atribuir-tecnico`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
+            .send({ tecnicoId: outroTecnicoId });
+
+        const osNaoAcessivelRes = await request(app)
+            .post("/ordens-servico")
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                equipamentoId,
+                tipo_manutencao: "CORRETIVA",
+                prioridade: "BAIXA",
+                descricao_falha: "OS de outro técnico sem apontamento do primeiro",
+            });
+        osNaoAcessivelId = osNaoAcessivelRes.body.id;
+
+        await request(app)
+            .patch(`/ordens-servico/${osNaoAcessivelId}/atribuir-tecnico`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
+            .send({ tecnicoId: outroTecnicoId });
     });
 
     afterAll(async () => {
         if (appDataSource.isInitialized) {
             const historicoRepo = appDataSource.getRepository(HistoricoOS);
+            const apontamentoRepo = appDataSource.getRepository(ApontamentoOS);
             const osRepo = appDataSource.getRepository(OrdemServico);
             const equipRepo = appDataSource.getRepository(Equipamento);
             const userRepo = appDataSource.getRepository(Usuario);
 
             await historicoRepo.createQueryBuilder().delete().execute();
+            await apontamentoRepo.createQueryBuilder().delete().execute();
             await osRepo.createQueryBuilder().delete().execute();
             await equipRepo.delete({ codigo: Like("TESTE-HIST-%") });
             await userRepo.delete({ email: Like("%hist-rt@teste.com") });
@@ -152,6 +217,35 @@ describe("Testes de Integração - Rotas de Histórico de OS (Banco Real)", () =
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
         expect(response.body.length).toBeGreaterThanOrEqual(4);
+    });
+
+    test("GET /historico-os - Deve filtrar histórico por prioridade da OS", async () => {
+        const response = await request(app)
+            .get("/historico-os")
+            .query({ prioridade: "ALTA" })
+            .set("Authorization", `Bearer ${supervisorToken}`);
+
+        expect(response.status).toBe(200);
+        expect(Array.isArray(response.body)).toBe(true);
+        expect(response.body.length).toBeGreaterThan(0);
+        expect(
+            response.body.every((item: any) => item.ordemServico?.prioridade === "ALTA")
+        ).toBe(true);
+    });
+
+    test("GET /historico-os - Técnico deve ver apenas histórico próprio ou de OS em que apontou", async () => {
+        const response = await request(app)
+            .get("/historico-os")
+            .set("Authorization", `Bearer ${tecnicoToken}`);
+
+        expect(response.status).toBe(200);
+        expect(Array.isArray(response.body)).toBe(true);
+        expect(response.body.length).toBeGreaterThan(0);
+
+        const osIds = new Set(response.body.map((item: any) => item.osId));
+        expect(osIds.has(osId)).toBe(true);
+        expect(osIds.has(osTransferidaId)).toBe(true);
+        expect(osIds.has(osNaoAcessivelId)).toBe(false);
     });
 
     // BUSCAR POR OS

@@ -98,10 +98,27 @@ export class OrdemServicoService {
       .leftJoinAndSelect("ordemServico.equipamento", "equipamento")
       .leftJoinAndSelect("ordemServico.solicitante", "solicitante")
       .leftJoinAndSelect("ordemServico.tecnico", "tecnico")
-      .leftJoinAndSelect("ordemServico.apontamentos", "apontamentos");
+      .leftJoinAndSelect("ordemServico.apontamentos", "apontamentos")
+      .leftJoinAndSelect("apontamentos.tecnico", "apontamentoTecnico");
 
     if (usuarioPerfil === Perfil.SOLICITANTE && usuarioId) {
       query.andWhere("solicitante.id = :usuarioId", { usuarioId });
+    }
+
+    if (usuarioPerfil === Perfil.TECNICO && usuarioId) {
+      query.andWhere(
+        new Brackets((builder) => {
+          builder
+            .where("tecnico.id = :usuarioId", { usuarioId })
+            .orWhere(
+              new Brackets((subBuilder) => {
+                subBuilder
+                  .where("ordemServico.status = :statusAberta", { statusAberta: StatusOs.ABERTA })
+                  .andWhere("tecnico.id IS NULL");
+              })
+            );
+        })
+      );
     }
 
     if (busca) {
@@ -236,6 +253,16 @@ export class OrdemServicoService {
 
       if (tecnico.perfil !== Perfil.TECNICO) {
         throw new AppError("O usuário informado não é um técnico");
+      }
+
+      if (
+        ordemServico.tecnico &&
+        ordemServico.tecnico.id !== tecnico.id
+      ) {
+        await this.apontamentoService.assertSemApontamentoAbertoParaTransferencia(
+          ordemServico.id,
+          manager
+        );
       }
 
       const statusAnterior = ordemServico.status;

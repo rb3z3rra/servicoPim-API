@@ -154,13 +154,36 @@ export class ApontamentoOSService {
   }
 
   async assertSemApontamentoAberto(osId: string, manager?: EntityManager): Promise<void> {
+    return this.assertSemApontamentoAbertoComMensagem(
+      osId,
+      "Finalize o apontamento de trabalho em aberto antes de concluir a OS",
+      manager
+    );
+  }
+
+  async assertSemApontamentoAbertoParaTransferencia(
+    osId: string,
+    manager?: EntityManager
+  ): Promise<void> {
+    return this.assertSemApontamentoAbertoComMensagem(
+      osId,
+      "Finalize o apontamento de trabalho em aberto antes de transferir a OS para outro técnico",
+      manager
+    );
+  }
+
+  private async assertSemApontamentoAbertoComMensagem(
+    osId: string,
+    mensagem: string,
+    manager?: EntityManager
+  ): Promise<void> {
     const repo = manager?.getRepository(ApontamentoOS) ?? this.apontamentoRepo;
     const apontamentoAberto = await repo.findOne({
       where: { osId, fimEm: IsNull() },
     });
 
     if (apontamentoAberto) {
-      throw new AppError("Finalize o apontamento de trabalho em aberto antes de concluir a OS");
+      throw new AppError(mensagem);
     }
   }
 

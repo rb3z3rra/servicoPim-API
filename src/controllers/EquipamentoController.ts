@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { EquipamentoService } from "../services/EquipamentoService.js";
 import { appDataSource } from "../database/appDataSource.js";
+import { listarEquipamentosQuerySchemaDTO } from "../dtos/EquipamentoSchemaDTO.js";
 
 const equipamentoService = new EquipamentoService(appDataSource);
 
@@ -14,7 +15,15 @@ export class EquipamentoController {
   }
 
   async getAll(req: Request, res: Response): Promise<Response> {
-    const equipamentos = await equipamentoService.getAll();
+    const filtros = listarEquipamentosQuerySchemaDTO.parse(req.query);
+    const equipamentos = await equipamentoService.getAll({
+      ...(filtros.busca ? { busca: filtros.busca } : {}),
+      ...(filtros.setor ? { setor: filtros.setor } : {}),
+      ...(typeof filtros.ativo === "boolean" ? { ativo: filtros.ativo } : {}),
+      ...(typeof filtros.comOsAbertas === "boolean"
+        ? { comOsAbertas: filtros.comOsAbertas }
+        : {}),
+    });
 
     return res.status(200).json(equipamentos);
   }

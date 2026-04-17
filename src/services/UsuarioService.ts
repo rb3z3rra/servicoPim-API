@@ -3,6 +3,9 @@ import type { Repository } from "typeorm";
 import { Usuario } from "../entities/Usuario.js";
 import type { DataSource } from "typeorm";
 import bcrypt from "bcryptjs";
+import { OrdemServico } from "../entities/OrdemServico.js";
+import { ApontamentoOS } from "../entities/ApontamentoOS.js";
+import { StatusOs } from "../types/os_status.js";
 
 type UserInput = {
   nome: string;
@@ -18,9 +21,13 @@ type UserUpdateInput = Partial<UserInput>;
 
 export class UsuarioService {
   private userRepo: Repository<Usuario>;
+  private ordemServicoRepo: Repository<OrdemServico>;
+  private apontamentoRepo: Repository<ApontamentoOS>;
 
   constructor(appDataSource: DataSource) {
     this.userRepo = appDataSource.getRepository(Usuario);
+    this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
+    this.apontamentoRepo = appDataSource.getRepository(ApontamentoOS);
   }
 
   async getAll(): Promise<Usuario[]> {
@@ -35,6 +42,51 @@ export class UsuarioService {
     }
 
     return user;
+  }
+
+  async getDetailsById(id: string) {
+    const user = await this.getById(id);
+
+    const [totalSolicitadas, totalAtribuidas, totalConcluidasComoTecnico, apontamentoResumo] =
+      await Promise.all([
+        this.ordemServicoRepo
+          .createQueryBuilder("ordemServico")
+          .leftJoin("ordemServico.solicitante", "solicitante")
+          .where("solicitante.id = :id", { id })
+          .getCount(),
+        this.ordemServicoRepo
+          .createQueryBuilder("ordemServico")
+          .leftJoin("ordemServico.tecnico", "tecnico")
+          .where("tecnico.id = :id", { id })
+          .getCount(),
+        this.ordemServicoRepo
+          .createQueryBuilder("ordemServico")
+          .leftJoin("ordemServico.tecnico", "tecnico")
+          .where("tecnico.id = :id", { id })
+          .andWhere("ordemServico.status = :status", { status: StatusOs.CONCLUIDA })
+          .getCount(),
+        this.apontamentoRepo
+          .createQueryBuilder("apontamento")
+          .select("COUNT(*)", "total_apontamentos")
+          .addSelect(
+            "COALESCE(SUM(EXTRACT(EPOCH FROM (apontamento.fim_em - apontamento.inicio_em)) / 3600), 0)",
+            "total_horas_trabalhadas"
+          )
+          .where("apontamento.tecnico_id = :id", { id })
+          .andWhere("apontamento.fim_em IS NOT NULL")
+          .getRawOne<{ total_apontamentos: string; total_horas_trabalhadas: string }>(),
+      ]);
+
+    return {
+      ...user,
+      total_os_solicitadas: totalSolicitadas,
+      total_os_atribuidas: totalAtribuidas,
+      total_os_concluidas: totalConcluidasComoTecnico,
+      total_apontamentos: Number(apontamentoResumo?.total_apontamentos ?? 0),
+      total_horas_trabalhadas: Number(
+        Number(apontamentoResumo?.total_horas_trabalhadas ?? 0).toFixed(2)
+      ),
+    };
   }
 
   async getByEmail(email: string): Promise<Usuario> {
