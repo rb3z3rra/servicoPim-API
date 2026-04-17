@@ -37,8 +37,10 @@ export function createApp() {
     app.use(morgan("dev"));
   }
 
-  app.use("/auth/login", loginRateLimit);
-  app.use(apiRateLimit);
+  if (process.env.DISABLE_RATE_LIMIT !== "true") {
+    app.use("/auth/login", loginRateLimit);
+    app.use(apiRateLimit);
+  }
 
   app.use(
     helmet({
