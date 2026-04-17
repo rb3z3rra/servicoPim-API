@@ -12,95 +12,101 @@ API REST do sistema de gestão de ordens de serviço de manutenção do projeto 
 
 ## Visão Geral
 
-O backend foi construído com `Node.js`, `TypeScript`, `Express`, `TypeORM` e `PostgreSQL`. Ele concentra:
+O backend concentra autenticação, autorização, regras de negócio, persistência e testes do sistema. Ele foi construído com:
 
-- autenticação com `JWT`
+- `Node.js`
+- `TypeScript`
+- `Express`
+- `TypeORM`
+- `PostgreSQL`
+- `Zod`
+
+O projeto entrega hoje:
+
+- autenticação com `JWT` (`accessToken` e `refreshToken`)
 - autorização por perfil
-- gestão de usuários
-- gestão de equipamentos
+- CRUD de usuários
+- CRUD de equipamentos com desativação lógica
 - fluxo completo de ordens de serviço
 - histórico de auditoria
-- apontamentos de trabalho do técnico
+- apontamentos de trabalho por técnico
 - dashboard agregado por perfil
-- testes unitários e integrados
+- seeds para ambiente de demonstração
+- testes unitários e de integração
 
-## O que a API entrega hoje
-
-- login com `accessToken` e `refreshToken`
-- perfis `SOLICITANTE`, `TÉCNICO` e `SUPERVISOR`
-- CRUD de usuários com `email` e `matricula` únicos
-- CRUD de equipamentos com desativação lógica
-- criação de O.S. usando o usuário autenticado como solicitante
-- atribuição de técnico pelo supervisor
-- autoatribuição de O.S. aberta pelo técnico
-- início explícito da O.S.
-- atualização de status com observação opcional
-- conclusão da O.S. com cálculo automático de duração
-- apontamentos de trabalho para medir tempo efetivo trabalhado
-- histórico automático das mudanças relevantes
-- listagem de O.S. com filtros por:
-  - `status`
-  - `prioridade`
-  - `busca`
-  - `tecnicoId`
-  - `setor`
-- endpoint agregado de dashboard
-- healthcheck em `GET /health`
-
-## Perfis e responsabilidades
+## Perfis do sistema
 
 - `SOLICITANTE`
   - abre ordens de serviço
-  - acompanha suas solicitações
+  - acompanha apenas as próprias solicitações
 
 - `TÉCNICO`
   - pode assumir O.S. aberta disponível
-  - pode iniciar a execução
+  - inicia execução
   - atualiza status da O.S. sob sua responsabilidade
   - registra apontamentos de trabalho
-  - conclui a O.S.
+  - conclui O.S.
+  - vê histórico apenas de O.S. em que é técnico atual ou já apontou trabalho
 
 - `SUPERVISOR`
   - administra usuários e equipamentos
-  - atribui técnico
-  - pode cancelar O.S.
-  - acompanha visão global pelo dashboard
+  - atribui ou transfere técnicos
+  - cancela O.S.
+  - acompanha histórico global
+  - acessa dashboard e relatórios gerenciais
 
 ## Regras de negócio principais
 
-- `POST /ordens-servico` usa o usuário autenticado como solicitante
+- a criação de O.S. usa o usuário autenticado como solicitante
 - equipamentos inativos não podem receber nova O.S.
 - exclusão de equipamento é lógica (`ativo = false`)
 - técnico não pode cancelar O.S.
 - conclusão exige descrição do serviço
-- o tempo total da O.S. e o tempo efetivamente trabalhado são tratados separadamente
-- não é permitido concluir O.S. com apontamento de trabalho aberto
+- não é permitido concluir O.S. com apontamento aberto
+- não é permitido transferir a O.S. para outro técnico com apontamento aberto
 - criação, atribuição, mudança de status, apontamentos e conclusão geram histórico
+- o sistema diferencia:
+  - tempo até início
+  - tempo até conclusão
+  - tempo efetivamente trabalhado
+
+## Estrutura do projeto
+
+```text
+src/
+  config/        -> variáveis de ambiente e helpers
+  controllers/   -> camada HTTP
+  database/      -> datasource e migrations
+  dtos/          -> validações com Zod
+  entities/      -> entidades do banco
+  errors/        -> AppError
+  middleware/    -> auth, role, error handling, validação
+  routes/        -> endpoints da API
+  scripts/       -> migrations e seeds
+  services/      -> regras de negócio
+  types/         -> enums e tipos do domínio
+```
+
+Arquivos centrais:
+
+- `src/app.ts`
+  monta a aplicação Express, middlewares, rate limit e rotas
+
+- `src/server.ts`
+  inicializa o banco, aplica migrations e sobe o servidor
+
+- `src/database/appDataSource.ts`
+  configura a conexão TypeORM
+
+## Entidades principais
+
+- `Usuario`
+- `Equipamento`
+- `OrdemServico`
+- `HistoricoOS`
+- `ApontamentoOS`
 
 ## Módulos principais
-
-- `src/routes`
-  Define os endpoints.
-
-- `src/controllers`
-  Recebe a requisição HTTP e orquestra os serviços.
-
-- `src/services`
-  Implementa as regras de negócio.
-
-- `src/entities`
-  Mapeia as entidades do banco.
-
-- `src/middleware`
-  Autenticação, tratamento de erros e utilitários do pipeline HTTP.
-
-- `src/dtos`
-  Schemas e validações com `Zod`.
-
-- `src/database` e `src/migrations`
-  Configuração e versionamento do banco.
-
-## Principais endpoints
 
 ### Auth
 
@@ -111,6 +117,7 @@ O backend foi construído com `Node.js`, `TypeScript`, `Express`, `TypeORM` e `P
 
 - `GET /usuarios`
 - `GET /usuarios/:id`
+- `GET /usuarios/:id/detalhes`
 - `POST /usuarios`
 - `PUT /usuarios/:id`
 - `DELETE /usuarios/:id`
@@ -138,17 +145,45 @@ O backend foi construído com `Node.js`, `TypeScript`, `Express`, `TypeORM` e `P
 - `POST /ordens-servico/:id/apontamentos/iniciar`
 - `PATCH /ordens-servico/:id/apontamentos/finalizar`
 
-### Dashboard e histórico
+### Histórico e Dashboard
 
-- `GET /dashboard`
 - `GET /historico-os`
 - `GET /historico-os/:id`
-- `GET /historico-os/os/:osId`
+- `GET /historico-os/ordem-servico/:osId`
 - `GET /historico-os/usuario/:usuarioId`
+- `GET /dashboard`
+- `GET /health`
 
-## Ambiente e configuração
+## Filtros já suportados
 
-As variáveis principais ficam no `.env`:
+### `GET /ordens-servico`
+
+- `status`
+- `prioridade`
+- `busca`
+- `tecnicoId`
+- `setor`
+
+### `GET /equipamentos`
+
+- `busca`
+- `setor`
+- `ativo`
+- `comOsAbertas`
+
+### `GET /historico-os`
+
+- `busca`
+- `statusNovo`
+- `prioridade`
+- `usuarioId`
+- `osId`
+- `dataInicio`
+- `dataFim`
+
+## Ambiente
+
+Variáveis principais no `.env`:
 
 - `PORT`
 - `DB_HOST`
@@ -160,11 +195,14 @@ As variáveis principais ficam no `.env`:
 - `JWT_REFRESH_SECRET`
 - `DB_LOGGING`
 
-Modelo completo em [`.env.example`](./.env.example).
+Consulte também:
+
+- [`.env.example`](./.env.example)
+- [`SETUP.md`](./SETUP.md)
 
 ## Como executar
 
-### 1. Banco no Docker + API local
+### Banco via Docker + API local
 
 ```bash
 docker compose up -d postgres pgadmin
@@ -179,7 +217,7 @@ Endereços:
 - PostgreSQL: `localhost:5433`
 - PgAdmin: `http://localhost:8080`
 
-### 2. Tudo com Docker
+### Tudo em Docker
 
 ```bash
 docker compose up --build -d
@@ -187,31 +225,57 @@ docker compose up --build -d
 
 Evite subir a API local e a API em container ao mesmo tempo, porque ambas usam a mesma porta.
 
+## Seeds e dados de demonstração
+
+### Seed base
+
+Cria usuários, equipamentos, O.S., histórico e apontamentos de demonstração:
+
+```bash
+npm run db:seed
+```
+
+### Massa de O.S. sobre dados existentes
+
+Gera ordens de serviço usando profissionais e equipamentos já cadastrados, sem apagar os usuários atuais:
+
+```bash
+npm run db:seed:ordens -- 200
+```
+
+Se nenhum número for informado, o padrão é `200`.
+
 ## Scripts
 
 - `npm run dev`
-  Sobe a API em modo desenvolvimento
+  inicia a API em modo desenvolvimento
 
 - `npm run build`
-  Compila o projeto
+  compila o projeto
 
 - `npm start`
-  Executa a versão compilada
+  executa a versão compilada
 
 - `npm run db:migrate`
-  Aplica as migrations no banco do ambiente atual
+  aplica migrations no banco atual
+
+- `npm run db:seed`
+  cria seed base controlada
+
+- `npm run db:seed:ordens -- 200`
+  gera massa de O.S. em cima dos dados atuais
 
 - `npm test`
-  Roda os testes unitários
+  roda a suíte unitária
 
 - `npm run test:unit`
-  Roda explicitamente a suíte unitária
+  roda explicitamente os unitários
 
 - `npm run test:integration:jest`
-  Roda os testes integrados usando o banco de teste já disponível
+  roda integração usando o banco de teste já disponível
 
 - `npm run test:integration:docker`
-  Sobe o ambiente de teste, aplica migrations, roda os integrados e derruba tudo no final
+  sobe o ambiente de teste, aplica migrations, roda integração e encerra tudo
 
 ## Testes
 
@@ -224,18 +288,18 @@ npm test
 Cobrem principalmente:
 
 - services
-- regras de transição de O.S.
-- autenticação/autorização
-- filtros
+- autenticação
+- transições de O.S.
 - validações de negócio
+- filtros e regras específicas
 
-### Integrados
+### Integração
 
 ```bash
 npm run test:integration:docker
 ```
 
-Cobrem fluxos ponta a ponta com banco real de teste:
+Cobrem fluxos ponta a ponta com banco real:
 
 - auth
 - usuários
@@ -246,16 +310,11 @@ Cobrem fluxos ponta a ponta com banco real de teste:
 
 ## Observações de arquitetura
 
-- o projeto usa `migrations`, não `synchronize`
-- os erros de negócio usam `AppError`
-- a autenticação é centralizada em middleware
-- o dashboard já usa agregação no banco para evitar processamento em memória
-- o sistema separa:
-  - tempo até início
-  - tempo até conclusão
-  - tempo efetivamente trabalhado
-
-## Referências úteis
-
-- setup detalhado: [SETUP.md](./SETUP.md)
-- roteiro de testes manuais: [testes-api.http](./testes-api.http)
+- usa `migrations`, não `synchronize`
+- erros de negócio usam `AppError`
+- autenticação é centralizada em middleware
+- o dashboard é agregado no backend para reduzir processamento no frontend
+- as respostas autenticadas usam headers de `no-store` para evitar cache indevido por perfil
+- o rate limit foi separado entre:
+  - login
+  - restante da API

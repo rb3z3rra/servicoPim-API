@@ -26,6 +26,12 @@ export class UsuarioController {
     return res.status(200).json(usuario);
   }
 
+  async getDetails(req: Request, res: Response): Promise<Response> {
+    const { id } = req.params;
+    const usuario = await usuarioService.getDetailsById(id as string);
+    return res.status(200).json(usuario);
+  }
+
   // PUT /usuarios/:id — SUPERVISOR pode editar qualquer um; usuario só edita a si mesmo
   async update(req: Request, res: Response): Promise<Response> {
     const isSupervisor = req.auth?.perfil === Perfil.SUPERVISOR;
@@ -47,4 +53,4 @@ export class UsuarioController {
     await usuarioService.deleteUser(id as string);
     return res.status(204).send();
   }
-}
+}

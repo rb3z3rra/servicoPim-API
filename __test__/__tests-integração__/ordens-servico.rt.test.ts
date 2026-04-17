@@ -17,6 +17,7 @@ let tecnicoToken: string;
 let solicitanteId: string;
 let outroSolicitanteId: string;
 let tecnicoId: string;
+let outroTecnicoId: string;
 let equipamentoId: number;
 
 async function criarUsuario(
@@ -92,6 +93,12 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
             "tecnico-os-rt@teste.com",
             Perfil.TECNICO,
             "OS-USER-003"
+        );
+        outroTecnicoId = await criarUsuario(
+            "Outro Tecnico OS",
+            "outro-tecnico-os-rt@teste.com",
+            Perfil.TECNICO,
+            "OS-USER-005"
         );
 
         solicitanteToken = await login("solicitante-os-rt@teste.com");
@@ -439,6 +446,85 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
             expect(response.status).toBe(200);
             expect(response.body[0].fimEm).toBeDefined();
+        });
+
+        test("PATCH /ordens-servico/:id/atribuir-tecnico - Deve falhar ao transferir com apontamento em aberto", async () => {
+            const response = await request(app)
+                .post("/ordens-servico")
+                .set("Authorization", `Bearer ${solicitanteToken}`)
+                .send({
+                    equipamentoId,
+                    tipo_manutencao: "CORRETIVA",
+                    prioridade: "ALTA",
+                    descricao_falha: "Teste de transferência com apontamento aberto",
+                });
+
+            const osTransferenciaId = response.body.id;
+
+            await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/atribuir-tecnico`)
+                .set("Authorization", `Bearer ${supervisorToken}`)
+                .send({ tecnicoId });
+
+            await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/iniciar`)
+                .set("Authorization", `Bearer ${tecnicoToken}`);
+
+            await request(app)
+                .post(`/ordens-servico/${osTransferenciaId}/apontamentos/iniciar`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
+                .send({ observacao: "Apontamento ainda aberto" });
+
+            const transferResponse = await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/atribuir-tecnico`)
+                .set("Authorization", `Bearer ${supervisorToken}`)
+                .send({ tecnicoId: outroTecnicoId });
+
+            expect(transferResponse.status).toBe(400);
+            expect(transferResponse.body.message).toBe(
+                "Finalize o apontamento de trabalho em aberto antes de transferir a OS para outro técnico"
+            );
+        });
+
+        test("PATCH /ordens-servico/:id/atribuir-tecnico - Deve permitir transferir após fechar apontamento", async () => {
+            const response = await request(app)
+                .post("/ordens-servico")
+                .set("Authorization", `Bearer ${solicitanteToken}`)
+                .send({
+                    equipamentoId,
+                    tipo_manutencao: "CORRETIVA",
+                    prioridade: "ALTA",
+                    descricao_falha: "Teste de transferência após fechar apontamento",
+                });
+
+            const osTransferenciaId = response.body.id;
+
+            await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/atribuir-tecnico`)
+                .set("Authorization", `Bearer ${supervisorToken}`)
+                .send({ tecnicoId });
+
+            await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/iniciar`)
+                .set("Authorization", `Bearer ${tecnicoToken}`);
+
+            await request(app)
+                .post(`/ordens-servico/${osTransferenciaId}/apontamentos/iniciar`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
+                .send({ observacao: "Apontamento a ser encerrado" });
+
+            await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/apontamentos/finalizar`)
+                .set("Authorization", `Bearer ${tecnicoToken}`)
+                .send({ observacao: "Encerrado antes da transferência" });
+
+            const transferResponse = await request(app)
+                .patch(`/ordens-servico/${osTransferenciaId}/atribuir-tecnico`)
+                .set("Authorization", `Bearer ${supervisorToken}`)
+                .send({ tecnicoId: outroTecnicoId });
+
+            expect(transferResponse.status).toBe(200);
+            expect(transferResponse.body.tecnico.id).toBe(outroTecnicoId);
         });
 
         test("PATCH /ordens-servico/:id/status - Deve atualizar status", async () => {

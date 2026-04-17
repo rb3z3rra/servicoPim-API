@@ -14,19 +14,31 @@ import { isTestEnv } from "./config/env.js";
 
 export function createApp() {
   const app = express();
+  app.disable("etag");
+
+  const loginRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Muitas tentativas de login. Tente novamente em alguns minutos." },
+  });
+
+  const apiRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.path === "/auth/login",
+    message: { message: "Muitas requisições. Aguarde alguns instantes e tente novamente." },
+  });
 
   if (!isTestEnv()) {
     app.use(morgan("dev"));
   }
 
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 100,
-      standardHeaders: true,
-      legacyHeaders: false,
-    })
-  );
+  app.use("/auth/login", loginRateLimit);
+  app.use(apiRateLimit);
 
   app.use(
     helmet({
@@ -36,6 +48,18 @@ export function createApp() {
 
   app.use(compression({ threshold: 1024 }));
   app.use(express.json());
+
+  app.use((req, res, next) => {
+    if (req.path === "/health") {
+      return next();
+    }
+
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    next();
+  });
 
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
