@@ -40,6 +40,8 @@ export function createApp() {
   if (process.env.DISABLE_RATE_LIMIT !== "true") {
     app.use("/auth/login", loginRateLimit);
     app.use(apiRateLimit);
+  } else {
+    console.log(">>> RATE LIMIT DESATIVADO (DISABLE_RATE_LIMIT=true)");
   }
 
   app.use(

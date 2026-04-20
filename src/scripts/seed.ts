@@ -502,21 +502,12 @@ async function clearPreviousSeedData() {
   const historicoRepo = appDataSource.getRepository(HistoricoOS);
   const apontamentoRepo = appDataSource.getRepository(ApontamentoOS);
 
-  const seedOrdensExistentes = await ordemRepo.find({
-    where: { numero: Like("OS-SEED-%") },
-    select: { id: true },
-  });
-
-  const osIds = seedOrdensExistentes.map((ordem) => ordem.id);
-
-  if (osIds.length > 0) {
-    await historicoRepo.delete({ osId: In(osIds) });
-    await apontamentoRepo.delete({ osId: In(osIds) });
-    await ordemRepo.delete({ id: In(osIds) });
-  }
-
-  await equipamentoRepo.delete({ codigo: Like("SEED-EQP-%") });
-  await usuarioRepo.delete({ email: Like("%@seed.local") });
+  // Deletar em ordem para respeitar chaves estrangeiras
+  await historicoRepo.createQueryBuilder().delete().execute();
+  await apontamentoRepo.createQueryBuilder().delete().execute();
+  await ordemRepo.createQueryBuilder().delete().execute();
+  await equipamentoRepo.createQueryBuilder().delete().execute();
+  await usuarioRepo.createQueryBuilder().delete().execute();
 }
 
 async function createUsers() {
