@@ -49,7 +49,7 @@ export class AuthService {
         perfil: usuario.perfil,
       },
       env.JWT_ACCESS_SECRET,
-      { expiresIn: (process.env.JWT_ACCESS_EXPIRES ?? "24h") as jwt.SignOptions["expiresIn"] }
+      { expiresIn: (process.env.JWT_ACCESS_EXPIRES ?? "24h") as string }
     );
 
     const refreshToken = jwt.sign(
@@ -102,7 +102,7 @@ export class AuthService {
         perfil: usuario.perfil,
       },
       env.JWT_ACCESS_SECRET,
-      { expiresIn: (process.env.JWT_ACCESS_EXPIRES ?? "24h") as jwt.SignOptions["expiresIn"] }
+      { expiresIn: (process.env.JWT_ACCESS_EXPIRES ?? "24h") as string }
     );
 
     const refreshToken = jwt.sign(
