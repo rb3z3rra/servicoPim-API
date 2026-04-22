@@ -10,6 +10,7 @@
     "db:migrate": "tsx src/scripts/runMigrations.ts",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:seed:ordens": "tsx src/scripts/seedOrdensDemo.ts",
+    "db:seed:sintetico": "tsx src/scripts/seedSintetico.ts",
     "test": "npm run test:unit",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand __test__/__tests-unitarios__",
     "test:integration": "npm run test:integration:docker",
