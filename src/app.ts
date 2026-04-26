@@ -16,6 +16,7 @@ import { isTestEnv } from "./config/env.js";
 export function createApp() {
   const app = express();
   app.disable("etag");
+  app.set("trust proxy", 1);
 
   const loginRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -47,12 +48,20 @@ export function createApp() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
     })
   );
 
   app.use(compression({ threshold: 1024 }));
-  app.use(express.json());
+  app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
 
   app.use((req, res, next) => {

@@ -37,10 +37,17 @@ export class AuthController {
 
     res.cookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
 
-    return res.status(200).json({ accessToken: result.accessToken });
+    return res.status(200).json({
+    usuario: result.usuario,
+    accessToken: result.accessToken,
+  });
+
   }
 
   async logout(_req: Request, res: Response): Promise<Response> {
+    const token = _req.cookies?.[COOKIE_NAME] as string | undefined;
+    await authService.revokeRefreshToken(token);
+
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

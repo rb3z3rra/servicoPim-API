@@ -285,6 +285,32 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
         expect(response.body.message).toBe("Acesso negado");
     });
 
+    test("PUT /usuarios/:id - Deve bloquear solicitante ao alterar campos administrativos do próprio perfil", async () => {
+        const repo = appDataSource.getRepository(Usuario);
+        const solicitante = await repo.findOneOrFail({
+            where: { email: "solicitante-auth@teste.com" },
+        });
+
+        const response = await request(app)
+            .put(`/usuarios/${solicitante.id}`)
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                perfil: "SUPERVISOR",
+                ativo: false,
+                matricula: "SOL-RT-ADMIN",
+            });
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe(
+            "Acesso negado: campos administrativos só podem ser alterados por supervisor"
+        );
+
+        const persisted = await repo.findOneOrFail({ where: { id: solicitante.id } });
+        expect(persisted.perfil).toBe(Perfil.SOLICITANTE);
+        expect(persisted.ativo).toBe(true);
+        expect(persisted.matricula).toBe("SOL-RT-001");
+    });
+
     // DELETE
     test("DELETE /usuarios/:id - Deve desativar usuário e bloquear novo login", async () => {
         const createRes = await request(app)

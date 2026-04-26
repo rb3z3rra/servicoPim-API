@@ -150,4 +150,39 @@ describe("Testes de Integração - Rotas de Autenticação (Banco Real)", () => 
         const refreshCookie = cookies.find((c) => c.startsWith("refreshToken="));
         expect(refreshCookie).toMatch(/expires=Thu, 01 Jan 1970/i);
     });
+
+    test("POST /auth/logout - Deve revogar o refreshToken no servidor", async () => {
+        const email = "logout-revoga@teste.com";
+        const repo = appDataSource.getRepository(Usuario);
+        const senhaHash = await bcrypt.hash("senha123", 10);
+
+        await repo.save({
+            nome: "Usuario Logout",
+            email,
+            matricula: "AUTH-RT-004",
+            senha_hash: senhaHash,
+            perfil: Perfil.SOLICITANTE,
+            setor: "TI",
+            ativo: true,
+        });
+
+        const loginResponse = await request(app)
+            .post("/auth/login")
+            .send({ email, senha: "senha123" });
+
+        const setCookieHeader = loginResponse.headers["set-cookie"] as string[] | string;
+        const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+
+        await request(app)
+            .post("/auth/logout")
+            .set("Cookie", cookies)
+            .expect(204);
+
+        const refreshResponse = await request(app)
+            .post("/auth/refresh")
+            .set("Cookie", cookies);
+
+        expect(refreshResponse.status).toBe(400);
+        expect(refreshResponse.body.message).toBe("Refresh Token inválido ou expirado");
+    });
 });

@@ -41,6 +41,16 @@ export class UsuarioController {
       return res.status(403).json({ message: "Acesso negado: você só pode editar seu próprio perfil" });
     }
 
+    if (!isSupervisor) {
+      const camposRestritos = ["perfil", "ativo", "matricula"].filter((field) => field in req.body);
+
+      if (camposRestritos.length > 0) {
+        return res.status(403).json({
+          message: "Acesso negado: campos administrativos só podem ser alterados por supervisor",
+        });
+      }
+    }
+
     const { id } = req.params;
     const data = req.body;
     const usuario = await usuarioService.updateUser(id as string, data);

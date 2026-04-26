@@ -1,119 +1,124 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Node.js-20%2B-green?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js version" />
-  <img src="https://img.shields.io/badge/TypeScript-6.x-blue?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Express-5.x-lightgrey?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
-  <img src="https://img.shields.io/badge/PostgreSQL-16-blue?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-</p>
+# ServicoPIM API
 
-# ServiçoPIM API
+API REST do sistema de gestao de ordens de servico de manutencao do projeto ServicoPIM.
 
-API REST do sistema de gestão de ordens de serviço de manutenção do projeto ServiçoPIM.
+## Visao geral
 
-## Visão Geral
+O backend concentra:
 
-O backend concentra autenticação, autorização, regras de negócio, persistência e testes do sistema. Ele foi construído com:
+- autenticacao
+- autorizacao por perfil
+- regras de negocio
+- persistencia
+- auditoria
+- testes unitarios e de integracao
+
+Stack principal:
 
 - `Node.js`
 - `TypeScript`
-- `Express`
+- `Express 5`
 - `TypeORM`
 - `PostgreSQL`
 - `Zod`
+- `JWT`
 
-O projeto entrega hoje:
+## Modulos principais
 
-- autenticação com `JWT` (`accessToken` e `refreshToken`)
-- autorização por perfil
-- CRUD de usuários
-- CRUD de equipamentos com desativação lógica
-- fluxo completo de ordens de serviço
-- histórico de auditoria
-- apontamentos de trabalho por técnico
-- dashboard agregado por perfil
-- seeds para ambiente de demonstração
-- testes unitários e de integração
+- `Autenticacao`
+- `Usuarios`
+- `Equipamentos`
+- `Ordens de Servico`
+- `Historico de O.S.`
+- `Apontamentos de Trabalho`
 
 ## Perfis do sistema
 
 - `SOLICITANTE`
-  - abre ordens de serviço
-  - acompanha apenas as próprias solicitações
+  - cria ordens de servico
+  - visualiza apenas as proprias O.S.
 
-- `TÉCNICO`
-  - pode assumir O.S. aberta disponível
-  - inicia execução
-  - atualiza status da O.S. sob sua responsabilidade
-  - registra apontamentos de trabalho
-  - conclui O.S.
-  - vê histórico apenas de O.S. em que é técnico atual ou já apontou trabalho
+- `TECNICO`
+  - assume O.S. abertas disponiveis
+  - inicia execucao
+  - atualiza status da propria fila
+  - registra apontamentos
+  - conclui O.S. sob sua responsabilidade
 
 - `SUPERVISOR`
-  - administra usuários e equipamentos
-  - atribui ou transfere técnicos
+  - cria e gerencia usuarios
+  - cria e gerencia equipamentos
+  - atribui ou transfere tecnico
   - cancela O.S.
-  - acompanha histórico global
-  - acessa dashboard e relatórios gerenciais
+  - acessa historico global e dashboard consolidado
 
-## Regras de negócio principais
+## Seguranca e sessao
 
-- a criação de O.S. usa o usuário autenticado como solicitante
-- equipamentos inativos não podem receber nova O.S.
-- exclusão de equipamento é lógica (`ativo = false`)
-- técnico não pode cancelar O.S.
-- conclusão exige descrição do serviço
-- não é permitido concluir O.S. com apontamento aberto
-- não é permitido transferir a O.S. para outro técnico com apontamento aberto
-- criação, atribuição, mudança de status, apontamentos e conclusão geram histórico
-- o sistema diferencia:
-  - tempo até início
-  - tempo até conclusão
-  - tempo efetivamente trabalhado
+O backend usa:
 
-## Estrutura do projeto
+- `accessToken` JWT de curta duracao
+- `refreshToken` em cookie `HttpOnly`
+- rotacao de refresh token
+- revogacao server-side de refresh token
+- `helmet`
+- `express-rate-limit`
+- validacao de entrada com `Zod`
+- controle de acesso com `ensureAuth` e `ensureRole`
 
-```text
-src/
-  config/        -> variáveis de ambiente e helpers
-  controllers/   -> camada HTTP
-  database/      -> datasource e migrations
-  dtos/          -> validações com Zod
-  entities/      -> entidades do banco
-  errors/        -> AppError
-  middleware/    -> auth, role, error handling, validação
-  routes/        -> endpoints da API
-  scripts/       -> migrations e seeds
-  services/      -> regras de negócio
-  types/         -> enums e tipos do domínio
-```
+Importante:
 
-Arquivos centrais:
+- logout nao apenas limpa o cookie, ele tambem revoga a sessao no servidor
+- refresh tokens sao armazenados no banco em formato rastreavel e comparados por hash
 
-- `src/app.ts`
-  monta a aplicação Express, middlewares, rate limit e rotas
-
-- `src/server.ts`
-  inicializa o banco, aplica migrations e sobe o servidor
-
-- `src/database/appDataSource.ts`
-  configura a conexão TypeORM
-
-## Entidades principais
+## Entidades atuais
 
 - `Usuario`
 - `Equipamento`
 - `OrdemServico`
 - `HistoricoOS`
 - `ApontamentoOS`
+- `RefreshToken`
 
-## Módulos principais
+## Estrutura do projeto
+
+```text
+src/
+  app.ts
+  server.ts
+  config/
+  controllers/
+  database/
+    migrations/
+  dtos/
+  entities/
+  errors/
+  middleware/
+  routes/
+  scripts/
+  services/
+  types/
+```
+
+Arquivos centrais:
+
+- `src/app.ts`
+  monta middlewares, headers, rate limit e rotas
+
+- `src/server.ts`
+  inicializa banco, executa migrations e sobe a API
+
+- `src/database/appDataSource.ts`
+  configura datasource, entidades e migrations
+
+## Endpoints principais
 
 ### Auth
 
 - `POST /auth/login`
 - `POST /auth/refresh`
+- `POST /auth/logout`
 
-### Usuários
+### Usuarios
 
 - `GET /usuarios`
 - `GET /usuarios/:id`
@@ -131,7 +136,7 @@ Arquivos centrais:
 - `PUT /equipamentos/:id`
 - `DELETE /equipamentos/:id`
 
-### Ordens de Serviço
+### Ordens de Servico
 
 - `GET /ordens-servico`
 - `GET /ordens-servico/:id`
@@ -145,7 +150,7 @@ Arquivos centrais:
 - `POST /ordens-servico/:id/apontamentos/iniciar`
 - `PATCH /ordens-servico/:id/apontamentos/finalizar`
 
-### Histórico e Dashboard
+### Historico e dashboard
 
 - `GET /historico-os`
 - `GET /historico-os/:id`
@@ -154,36 +159,24 @@ Arquivos centrais:
 - `GET /dashboard`
 - `GET /health`
 
-## Filtros já suportados
+## Regras de negocio relevantes
 
-### `GET /ordens-servico`
+- usuario inativo nao autentica
+- email e matricula devem ser unicos
+- equipamento inativo nao recebe nova O.S.
+- solicitante autenticado e o autor da O.S.
+- tecnico so pode ser atribuido se for ativo e possuir perfil `TECNICO`
+- tecnico pode assumir O.S. aberta e sem responsavel
+- O.S. concluida ou cancelada nao pode ser alterada
+- apenas supervisor pode cancelar O.S.
+- O.S. nao pode ser concluida com apontamento aberto
+- acoes importantes da O.S. geram historico
+- exclusao de usuario e equipamento e logica
+- campos administrativos de usuario sao restritos ao supervisor
 
-- `status`
-- `prioridade`
-- `busca`
-- `tecnicoId`
-- `setor`
+## Variaveis de ambiente
 
-### `GET /equipamentos`
-
-- `busca`
-- `setor`
-- `ativo`
-- `comOsAbertas`
-
-### `GET /historico-os`
-
-- `busca`
-- `statusNovo`
-- `prioridade`
-- `usuarioId`
-- `osId`
-- `dataInicio`
-- `dataFim`
-
-## Ambiente
-
-Variáveis principais no `.env`:
+Principais variaveis esperadas:
 
 - `PORT`
 - `DB_HOST`
@@ -194,127 +187,168 @@ Variáveis principais no `.env`:
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
 - `DB_LOGGING`
+- `NODE_ENV`
 
-Consulte também:
+Consulte tambem:
 
-- [`.env.example`](./.env.example)
 - [`SETUP.md`](./SETUP.md)
 
-## Como executar
+## Como executar localmente
 
-### Banco via Docker + API local
+### 1. Dependencias
 
 ```bash
-docker compose up -d postgres pgadmin
 npm install
+```
+
+### 2. Subir banco
+
+```bash
+docker compose up -d postgres
+```
+
+O Postgres fica acessivel para a API dentro da rede Docker do projeto. No compose atual ele nao e publicado externamente por padrao.
+
+### 3. Rodar migrations
+
+```bash
 npm run db:migrate
+```
+
+### 4. Subir API
+
+```bash
 npm run dev
 ```
 
-Endereços:
+API local:
 
-- API: `http://localhost:9090`
-- PostgreSQL: `localhost:5433`
-- PgAdmin: `http://localhost:8080`
-
-### Tudo em Docker
-
-```bash
-docker compose up --build -d
+```text
+http://localhost:9090
 ```
 
-Evite subir a API local e a API em container ao mesmo tempo, porque ambas usam a mesma porta.
+## Como executar tudo em Docker
 
-## Seeds e dados de demonstração
+```bash
+docker compose up -d --build
+```
+
+No compose atual:
+
+- a API fica publicada em `127.0.0.1:${PORT}`
+- o PgAdmin fica restrito a `127.0.0.1:8080`
+- o Postgres nao e exposto externamente por padrao
+
+## Seeds
 
 ### Seed base
 
-Cria usuários, equipamentos, O.S., histórico e apontamentos de demonstração:
+Cria dados de demonstracao controlados:
 
 ```bash
 npm run db:seed
 ```
 
-### Massa de O.S. sobre dados existentes
+### Seed complementar de O.S.
 
-Gera ordens de serviço usando profissionais e equipamentos já cadastrados, sem apagar os usuários atuais:
+Gera massa adicional usando os dados atuais:
 
 ```bash
 npm run db:seed:ordens -- 200
 ```
 
-Se nenhum número for informado, o padrão é `200`.
-
 ## Scripts
 
 - `npm run dev`
-  inicia a API em modo desenvolvimento
+  sobe a API em modo desenvolvimento
 
 - `npm run build`
   compila o projeto
 
 - `npm start`
-  executa a versão compilada
+  executa a versao compilada
 
 - `npm run db:migrate`
-  aplica migrations no banco atual
+  aplica migrations no banco configurado
 
 - `npm run db:seed`
-  cria seed base controlada
+  popula dados base
 
 - `npm run db:seed:ordens -- 200`
-  gera massa de O.S. em cima dos dados atuais
+  gera massa de ordens
 
 - `npm test`
-  roda a suíte unitária
+  alias para testes unitarios
 
 - `npm run test:unit`
-  roda explicitamente os unitários
+  roda a suite unitaria
 
 - `npm run test:integration:jest`
-  roda integração usando o banco de teste já disponível
+  roda integracao assumindo banco de teste ja disponivel
 
 - `npm run test:integration:docker`
-  sobe o ambiente de teste, aplica migrations, roda integração e encerra tudo
+  sobe Postgres de teste, aplica migrations, roda integracao e derruba o ambiente
 
-## Testes
+## Como testar a API
 
-### Unitários
+### 1. Build
+
+Valida compilacao:
 
 ```bash
-npm test
+npm run build
 ```
 
-Cobrem principalmente:
+### 2. Testes unitarios
 
-- services
-- autenticação
-- transições de O.S.
-- validações de negócio
-- filtros e regras específicas
+Cobrem services, auth, middlewares e regras isoladas:
 
-### Integração
+```bash
+npm run test:unit
+```
+
+### 3. Testes de integracao com Docker
+
+Esse e o fluxo recomendado porque ja sobe o banco correto automaticamente:
 
 ```bash
 npm run test:integration:docker
 ```
 
-Cobrem fluxos ponta a ponta com banco real:
+O script faz isto:
 
-- auth
-- usuários
-- equipamentos
-- ordens de serviço
-- histórico
-- dashboard
+1. sobe `postgres-test` via `docker-compose.test.yml`
+2. carrega `.env.test`
+3. aplica `migrations`
+4. executa Jest de integracao
+5. derruba o ambiente de teste
 
-## Observações de arquitetura
+### 4. Testes de integracao com banco ja disponivel
 
-- usa `migrations`, não `synchronize`
-- erros de negócio usam `AppError`
-- autenticação é centralizada em middleware
-- o dashboard é agregado no backend para reduzir processamento no frontend
-- as respostas autenticadas usam headers de `no-store` para evitar cache indevido por perfil
-- o rate limit foi separado entre:
-  - login
-  - restante da API
+Se voce ja tiver um banco de teste pronto e configurado:
+
+```bash
+npm run test:integration:jest
+```
+
+## Estado atual de qualidade
+
+Validacoes mais importantes atualmente cobertas:
+
+- compilacao da API
+- testes unitarios
+- testes de integracao com banco real
+- revogacao de refresh token
+- rotacao de sessao
+- autorizacao por perfil
+- regras de O.S.
+
+## Observacoes de arquitetura
+
+- a API usa `migrations`, nao `synchronize`
+- o refresh token e revogavel server-side por meio da entidade `RefreshToken`
+- o logout invalida a sessao atual no backend
+- operacoes criticas de O.S. usam transacao
+- respostas autenticadas usam `no-store`
+- o dashboard e agregado no backend
+- dependencias de producao foram auditadas e os `overrides` atuais corrigem as vulnerabilidades reportadas

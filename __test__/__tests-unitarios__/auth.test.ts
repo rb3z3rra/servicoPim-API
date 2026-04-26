@@ -2,24 +2,39 @@ import { jest } from '@jest/globals';
 import { AuthService } from "../../src/services/AuthService.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { createHash } from "node:crypto";
 import { Perfil } from "../../src/types/usr_perfil.js";
 
 let authService: AuthService;
 let mockDataSource: any;
+let userRepo: any;
+let refreshTokenRepo: any;
 
 beforeAll(() => {
     process.env.JWT_ACCESS_SECRET = "test-access-secret";
     process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+    userRepo = {
+        findOne: jest.fn(),
+    };
+    refreshTokenRepo = {
+        findOne: jest.fn(),
+        create: jest.fn((data: unknown) => data),
+        save: jest.fn(),
+    };
     mockDataSource = {
-        getRepository: jest.fn().mockReturnValue({
-            findOne: jest.fn(),
-        })
+        getRepository: jest.fn((entity: { name?: string }) =>
+            entity?.name === "RefreshToken" ? refreshTokenRepo : userRepo
+        )
     };
     authService = new AuthService(mockDataSource);
 });
 
 beforeEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
+    userRepo.findOne.mockReset();
+    refreshTokenRepo.findOne.mockReset();
+    refreshTokenRepo.create.mockClear();
+    refreshTokenRepo.save.mockReset();
 });
 
 describe("Testes de Autenticação Unitários", () => {
@@ -35,7 +50,7 @@ describe("Testes de Autenticação Unitários", () => {
         };
 
         // 1. Mentimos pro código dizendo que o Banco achou o usuário
-        mockDataSource.getRepository().findOne.mockResolvedValue(mockUserData);
+        userRepo.findOne.mockResolvedValue(mockUserData);
         
         // 2. Mentimos pro bcrypt dizendo que a senha descriptografada casou
         jest.spyOn(bcrypt, "compare").mockImplementation(() => Promise.resolve(true));
@@ -56,14 +71,14 @@ describe("Testes de Autenticação Unitários", () => {
     });
 
     test("Deve lançar erro ao passar email inválido", async () => {
-        mockDataSource.getRepository().findOne.mockResolvedValue(null);
+        userRepo.findOne.mockResolvedValue(null);
 
         await expect(authService.login({ email: "invalido@teste.com", senha: "123" }))
             .rejects.toThrow("Email ou senha inválidos");
     });
 
     test("Deve bloquear usuário inativo no login", async () => {
-        mockDataSource.getRepository().findOne.mockResolvedValue({
+        userRepo.findOne.mockResolvedValue({
             id: "user-123",
             nome: "Usuario Inativo",
             email: "inativo@teste.com",
@@ -78,7 +93,7 @@ describe("Testes de Autenticação Unitários", () => {
     });
 
     test("Deve rejeitar senha incorreta no login", async () => {
-        mockDataSource.getRepository().findOne.mockResolvedValue({
+        userRepo.findOne.mockResolvedValue({
             id: "user-123",
             nome: "Usuario Teste",
             email: "teste@teste.com",
@@ -95,7 +110,17 @@ describe("Testes de Autenticação Unitários", () => {
     });
 
     test("Deve gerar novos tokens no refresh com sucesso", async () => {
-        mockDataSource.getRepository().findOne.mockResolvedValue({
+        const token = "refresh_token_valido";
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+
+        refreshTokenRepo.findOne.mockResolvedValue({
+            jti: "jti-123",
+            tokenHash,
+            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: null,
+            usuario: { id: "user-123" },
+        });
+        userRepo.findOne.mockResolvedValue({
             id: "user-123",
             nome: "Usuario Teste",
             email: "teste@teste.com",
@@ -104,17 +129,19 @@ describe("Testes de Autenticação Unitários", () => {
             ativo: true
         });
 
-        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123" } as never);
+        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123", jti: "jti-123" } as never);
         jest.spyOn(jwt, "sign")
             .mockReturnValueOnce("new_access_token" as never)
             .mockReturnValueOnce("new_refresh_token" as never);
 
-        const result = await authService.refresh("refresh_token_valido");
+        const result = await authService.refresh(token);
 
-        expect(result).toEqual({
+        expect(result).toEqual(expect.objectContaining({
             accessToken: "new_access_token",
             refreshToken: "new_refresh_token"
-        });
+        }));
+        expect(result.usuario.email).toBe("teste@teste.com");
+        expect(refreshTokenRepo.save).toHaveBeenCalledTimes(2);
     });
 
     test("Deve falhar no refresh com token inválido", async () => {
@@ -127,10 +154,20 @@ describe("Testes de Autenticação Unitários", () => {
     });
 
     test("Deve falhar no refresh com usuário inexistente ou inativo", async () => {
-        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123" } as never);
-        mockDataSource.getRepository().findOne.mockResolvedValue(null);
+        const token = "refresh_token_valido";
+        const tokenHash = createHash("sha256").update(token).digest("hex");
 
-        await expect(authService.refresh("refresh_token_valido"))
+        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123", jti: "jti-123" } as never);
+        refreshTokenRepo.findOne.mockResolvedValue({
+            jti: "jti-123",
+            tokenHash,
+            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: null,
+            usuario: { id: "user-123" },
+        });
+        userRepo.findOne.mockResolvedValue(null);
+
+        await expect(authService.refresh(token))
             .rejects.toThrow("Usuário inválido ou inativo");
     });
 });
