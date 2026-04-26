@@ -68,6 +68,14 @@ describe("Testes de Autenticação Unitários", () => {
         expect(resultado).toHaveProperty("refreshToken", "fake_refresh_token");
         expect(resultado.usuario.id).toBe("user-123");
         expect(resultado.usuario.email).toBe("teste@teste.com");
+        expect(refreshTokenRepo.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                usuario: mockUserData,
+                revokedAt: null,
+                tokenHash: createHash("sha256").update("fake_refresh_token").digest("hex"),
+            })
+        );
+        expect(refreshTokenRepo.save).toHaveBeenCalled();
     });
 
     test("Deve lançar erro ao passar email inválido", async () => {
@@ -169,5 +177,45 @@ describe("Testes de Autenticação Unitários", () => {
 
         await expect(authService.refresh(token))
             .rejects.toThrow("Usuário inválido ou inativo");
+        expect(refreshTokenRepo.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                jti: "jti-123",
+                revokedAt: expect.any(Date),
+            })
+        );
+    });
+
+    test("Deve revogar o refresh token no logout quando o token for válido", async () => {
+        const token = "refresh_token_valido";
+        const refreshTokenEntity = {
+            jti: "jti-logout",
+            revokedAt: null,
+        };
+
+        jest.spyOn(jwt, "verify").mockReturnValue({ sub: "user-123", jti: "jti-logout" } as never);
+        refreshTokenRepo.findOne.mockResolvedValue(refreshTokenEntity);
+        refreshTokenRepo.save.mockImplementation(async (data: unknown) => data);
+
+        await authService.revokeRefreshToken(token);
+
+        expect(refreshTokenRepo.findOne).toHaveBeenCalledWith({
+            where: { jti: "jti-logout" },
+        });
+        expect(refreshTokenRepo.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                jti: "jti-logout",
+                revokedAt: expect.any(Date),
+            })
+        );
+    });
+
+    test("Deve ignorar revogação quando o refresh token for inválido", async () => {
+        jest.spyOn(jwt, "verify").mockImplementation(() => {
+            throw new Error("invalid token");
+        });
+
+        await expect(authService.revokeRefreshToken("token_invalido")).resolves.toBeUndefined();
+        expect(refreshTokenRepo.findOne).not.toHaveBeenCalled();
+        expect(refreshTokenRepo.save).not.toHaveBeenCalled();
     });
 });

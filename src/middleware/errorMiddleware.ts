@@ -1,7 +1,17 @@
 import type { NextFunction, Request, Response } from "express";
-import { QueryFailedError } from "typeorm";
 import { ZodError } from "zod";
 import { AppError } from "../errors/AppError.js";
+
+type QueryLikeError = Error & {
+  name?: string;
+  driverError?: {
+    code?: string;
+  };
+};
+
+function isQueryFailedError(error: Error): error is QueryLikeError {
+  return error.name === "QueryFailedError";
+}
 
 export function errorMiddleware(
   error: Error,
@@ -19,8 +29,8 @@ export function errorMiddleware(
     return res.status(400).json({ message: "Dados inválidos", issues: error.issues });
   }
 
-  if (error instanceof QueryFailedError) {
-    const driverError = (error as QueryFailedError & { driverError?: { code?: string } }).driverError;
+  if (isQueryFailedError(error)) {
+    const driverError = error.driverError;
 
     if (driverError?.code === "23505") {
       return res.status(409).json({

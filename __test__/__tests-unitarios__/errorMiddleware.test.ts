@@ -1,5 +1,4 @@
 import { jest } from "@jest/globals";
-import { QueryFailedError } from "typeorm";
 import { ZodError } from "zod";
 import { AppError } from "../../src/errors/AppError.js";
 import { errorMiddleware } from "../../src/middleware/errorMiddleware.js";
@@ -9,6 +8,18 @@ function createResponse() {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
   };
+}
+
+function createQueryFailedError(code: string) {
+  const error = new Error("query failed") as Error & {
+    name: string;
+    driverError: { code: string };
+  };
+
+  error.name = "QueryFailedError";
+  error.driverError = { code };
+
+  return error;
 }
 
 describe("errorMiddleware", () => {
@@ -48,9 +59,7 @@ describe("errorMiddleware", () => {
 
   test("retorna 409 para conflito de unicidade no banco", () => {
     const res = createResponse();
-    const error = new QueryFailedError("INSERT INTO ordem_servico ...", [], {
-      code: "23505",
-    } as any);
+    const error = createQueryFailedError("23505");
 
     errorMiddleware(error, req, res as any, next);
 
@@ -62,9 +71,7 @@ describe("errorMiddleware", () => {
 
   test("retorna 500 padronizado para erro genérico de banco", () => {
     const res = createResponse();
-    const error = new QueryFailedError("INSERT INTO ordem_servico ...", [], {
-      code: "99999",
-    } as any);
+    const error = createQueryFailedError("99999");
 
     errorMiddleware(error, req, res as any, next);
 
