@@ -1,7 +1,7 @@
 {
   "name": "back-spim",
   "version": "1.0.0",
-  "description": "",
+  "description": "API REST para gestão de ordens de serviço, equipamentos, usuários, prazos de atendimento e histórico operacional.",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -14,11 +14,20 @@
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand __test__/__tests-unitarios__",
     "test:integration": "npm run test:integration:docker",
     "test:integration:jest": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.integration.config.cjs --runInBand",
-    "test:integration:docker": "bash scripts/test-integration.sh"
+    "test:integration:docker": "bash scripts/test-integration.sh",
+    "load:smoke": "bash scripts/test-load.sh smoke",
+    "load:steady": "bash scripts/test-load.sh steady",
+    "load:spike": "bash scripts/test-load.sh spike"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ordem-servico",
+    "manutencao",
+    "typeorm",
+    "express",
+    "postgresql"
+  ],
+  "author": "Rodrigo da Silva Bezerra, Patrese Emiron Barbosa de Souza, Daniel Valdivino Silva",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",

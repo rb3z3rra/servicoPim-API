@@ -7,12 +7,14 @@ import { OrdemServico } from "../../src/entities/OrdemServico.js";
 import { HistoricoOS } from "../../src/entities/HistoricoOS.js";
 import { ApontamentoOS } from "../../src/entities/ApontamentoOS.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
+import { Prioridade } from "../../src/types/os_prioridade.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
 
 let supervisorToken: string;
 let solicitanteToken: string;
 let tecnicoToken: string;
+let gestorToken: string;
 let tecnicoId: string;
 let equipamentoId: number;
 
@@ -81,10 +83,17 @@ describe("Testes de Integração - Dashboard (Banco Real)", () => {
             Perfil.TECNICO,
             "DASH-USER-003"
         );
+        await criarUsuario(
+            "Gestor Dash",
+            "gestor-dash-rt@teste.com",
+            Perfil.GESTOR,
+            "DASH-USER-004"
+        );
 
         solicitanteToken = await login("solicitante-dash-rt@teste.com");
         supervisorToken = await login("supervisor-dash-rt@teste.com");
         tecnicoToken = await login("tecnico-dash-rt@teste.com");
+        gestorToken = await login("gestor-dash-rt@teste.com");
 
         const equipRes = await request(app)
             .post("/equipamentos")
@@ -148,6 +157,24 @@ describe("Testes de Integração - Dashboard (Banco Real)", () => {
         expect(response.body).toHaveProperty("sem_tecnico");
         expect(response.body).toHaveProperty("tempo_medio_ate_inicio_horas");
         expect(response.body).toHaveProperty("tempo_medio_ate_conclusao_horas");
+        expect(response.body).toHaveProperty("prazo_horas");
+    });
+
+    test("GET /dashboard - Gestor deve visualizar indicadores gerais", async () => {
+        const response = await request(app)
+            .get("/dashboard")
+            .set("Authorization", `Bearer ${gestorToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("abertas");
+        expect(response.body).toHaveProperty("em_andamento");
+        expect(response.body).toHaveProperty("criticas_abertas");
+        expect(response.body).toHaveProperty("prazo_horas");
+        expect(response.body.prazo_horas).toEqual(
+            expect.objectContaining({
+                [Prioridade.CRITICA]: expect.any(Number),
+            })
+        );
     });
 
     test("GET /dashboard - Deve retornar indicadores do técnico com campos específicos", async () => {

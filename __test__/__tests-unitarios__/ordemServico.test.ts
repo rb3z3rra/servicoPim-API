@@ -3,8 +3,10 @@ import { Equipamento } from "../../src/entities/Equipamento.js";
 import { OrdemServico } from "../../src/entities/OrdemServico.js";
 import { Usuario } from "../../src/entities/Usuario.js";
 import { ApontamentoOS } from "../../src/entities/ApontamentoOS.js";
+import { ConfiguracaoPrazoAtendimento } from "../../src/entities/ConfiguracaoPrazoAtendimento.js";
 import { OrdemServicoService } from "../../src/services/OrdemServicoService.js";
 import { StatusOs } from "../../src/types/os_status.js";
+import { StatusPrazoOS } from "../../src/types/os_status_prazo.js";
 import { Prioridade } from "../../src/types/os_prioridade.js";
 import { TipoManutencao } from "../../src/types/os_tipoManutencao.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
@@ -44,6 +46,13 @@ const apontamentoRepo = {
   save: jest.fn(),
 };
 
+const configuracaoPrazoAtendimentoRepo = {
+  find: jest.fn(),
+  findOne: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+};
+
 const mockManager = {
   getRepository: jest.fn((entity) => {
     if (entity === OrdemServico) {
@@ -60,6 +69,10 @@ const mockManager = {
 
     if (entity === ApontamentoOS) {
       return apontamentoRepo;
+    }
+
+    if (entity === ConfiguracaoPrazoAtendimento) {
+      return configuracaoPrazoAtendimentoRepo;
     }
 
     return undefined;
@@ -83,6 +96,10 @@ const mockDataSource = {
 
     if (entity === ApontamentoOS) {
       return apontamentoRepo;
+    }
+
+    if (entity === ConfiguracaoPrazoAtendimento) {
+      return configuracaoPrazoAtendimentoRepo;
     }
 
     return undefined;
@@ -122,6 +139,10 @@ beforeEach(() => {
       return apontamentoRepo;
     }
 
+    if (entity === ConfiguracaoPrazoAtendimento) {
+      return configuracaoPrazoAtendimentoRepo;
+    }
+
     return undefined;
   });
   mockDataSource.getRepository.mockImplementation((entity) => {
@@ -141,6 +162,10 @@ beforeEach(() => {
       return apontamentoRepo;
     }
 
+    if (entity === ConfiguracaoPrazoAtendimento) {
+      return configuracaoPrazoAtendimentoRepo;
+    }
+
     return undefined;
   });
   ordemRepo.manager.transaction.mockImplementation(async (callback) => callback(mockManager));
@@ -152,6 +177,15 @@ beforeEach(() => {
   queryBuilder.getMany.mockResolvedValue([]);
   apontamentoRepo.findOne.mockResolvedValue(null);
   apontamentoRepo.find.mockResolvedValue([]);
+  configuracaoPrazoAtendimentoRepo.findOne.mockResolvedValue({ id: "prazo-1" });
+  configuracaoPrazoAtendimentoRepo.find.mockResolvedValue([
+    { prioridade: Prioridade.BAIXA, horas_limite: 72, ativo: true },
+    { prioridade: Prioridade.MEDIA, horas_limite: 24, ativo: true },
+    { prioridade: Prioridade.ALTA, horas_limite: 8, ativo: true },
+    { prioridade: Prioridade.CRITICA, horas_limite: 4, ativo: true },
+  ]);
+  configuracaoPrazoAtendimentoRepo.create.mockImplementation((data) => data);
+  configuracaoPrazoAtendimentoRepo.save.mockImplementation(async (data) => data);
 });
 
 describe("OrdemServicoService", () => {
@@ -472,6 +506,8 @@ describe("OrdemServicoService", () => {
         equipamento: { id: 1 },
         solicitante: { id: "sol-1" },
         inicio_em: new Date(),
+        abertura_em: new Date(),
+        prioridade: Prioridade.ALTA,
       })
       .mockResolvedValueOnce({
         id: "os-1",
@@ -591,6 +627,8 @@ describe("OrdemServicoService", () => {
         equipamento: { id: 1 },
         solicitante: { id: "sol-1" },
         inicio_em: null,
+        abertura_em: new Date(),
+        prioridade: Prioridade.MEDIA,
       })
       .mockResolvedValueOnce({
         id: "os-1",
@@ -599,6 +637,8 @@ describe("OrdemServicoService", () => {
         equipamento: { id: 1 },
         solicitante: { id: "sol-1" },
         inicio_em: new Date(),
+        abertura_em: new Date(),
+        prioridade: Prioridade.MEDIA,
       });
     ordemRepo.save.mockImplementation(async (data) => data);
 
@@ -630,6 +670,8 @@ describe("OrdemServicoService", () => {
         solicitante: { id: "sol-1" },
         descricao_servico: "Troca de placa",
         horas_trabalhadas: 3,
+        abertura_em: new Date(),
+        prioridade: Prioridade.ALTA,
       });
     ordemRepo.save.mockImplementation(async (data) => data);
 
@@ -643,6 +685,11 @@ describe("OrdemServicoService", () => {
     );
 
     expect(result.status).toBe(StatusOs.CONCLUIDA);
+    expect(ordemRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status_prazo: StatusPrazoOS.CONCLUIDA_NO_PRAZO,
+      })
+    );
     expect(historicoService.registrarHistorico).toHaveBeenCalledWith(
       "os-1",
       "tec-1",
@@ -650,6 +697,48 @@ describe("OrdemServicoService", () => {
       StatusOs.CONCLUIDA,
       "Ordem de serviço concluída",
       mockManager
+    );
+  });
+
+  test("mantém prazo estourado quando OS atrasada é concluída", async () => {
+    const aberturaEm = new Date(Date.now() - 10 * 60 * 60 * 1000);
+
+    ordemRepo.findOne
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.EM_ANDAMENTO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+        abertura_em: aberturaEm,
+        prioridade: Prioridade.ALTA,
+      })
+      .mockResolvedValueOnce({
+        id: "os-1",
+        status: StatusOs.CONCLUIDA,
+        status_prazo: StatusPrazoOS.CONCLUIDA_COM_PRAZO_ESTOURADO,
+        tecnico: { id: "tec-1" },
+        equipamento: { id: 1 },
+        solicitante: { id: "sol-1" },
+        inicio_em: new Date(),
+        abertura_em: aberturaEm,
+        prioridade: Prioridade.ALTA,
+      });
+    ordemRepo.save.mockImplementation(async (data) => data);
+
+    const result = await ordemServicoService.concluirOrdemServico(
+      "os-1",
+      { descricao_servico: "Teste atraso" },
+      "tec-1",
+      Perfil.TECNICO
+    );
+
+    expect(result.status).toBe(StatusOs.CONCLUIDA);
+    expect(ordemRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status_prazo: StatusPrazoOS.CONCLUIDA_COM_PRAZO_ESTOURADO,
+      })
     );
   });
 

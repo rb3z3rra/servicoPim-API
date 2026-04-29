@@ -1,6 +1,6 @@
 FROM node:20-alpine AS builder
 
-WORKDIR /app 
+WORKDIR /app
 
 COPY package*.json ./
 COPY tsconfig.json ./
@@ -10,10 +10,9 @@ RUN npm install
 COPY . .
 RUN npx tsc --skipLibCheck
 
-# STAGE 2 -  PRODUCTION
 FROM node:20-alpine AS production
 
-WORKDIR /app 
+WORKDIR /app
 
 COPY package*.json ./
 RUN npm install --only=production

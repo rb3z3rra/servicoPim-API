@@ -83,6 +83,26 @@ export const listarOrdensServicoQuerySchemaDTO = z.object({
     },
     z.string().trim().min(1).max(255).optional()
   ),
+  dataInicio: z.preprocess(
+    (value) => {
+      if (value === "undefined" || value === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.string().date().optional()
+  ),
+  dataFim: z.preprocess(
+    (value) => {
+      if (value === "undefined" || value === "") {
+        return undefined;
+      }
+
+      return value;
+    },
+    z.string().date().optional()
+  ),
 });
 
 export type CreateOrdemServicoSchemaDTO = z.infer<

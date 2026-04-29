@@ -1,129 +1,153 @@
-# Guia de Setup e Instalação
+# Guia de Setup
 
-Guia rápido para rodar a API com migrations e testes reproduzíveis.
+Guia rápido para preparar a API ServiçoPIM em desenvolvimento, testes e Docker.
 
 ## Pré-requisitos
+
 - Node.js 20+
 - Docker com `docker compose`
-- PostgreSQL local ou container
+- npm
 
-## Instalação
+## Instalação local
+
 ```bash
 npm install
-```
-
-Copie `.env.example` para `.env`:
-
-```bash
 cp .env.example .env
 ```
 
-Preencha os valores. Os segredos obrigatórios são:
+Preencha os valores do `.env`. Os segredos obrigatórios são:
+
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
 
-## Estrutura de ambientes
-- `.env`: ambiente normal de desenvolvimento
-- `.env.test`: ambiente isolado para testes integrados
-- `docker-compose.yml`: infraestrutura normal
-- `docker-compose.test.yml`: infraestrutura exclusiva de teste
+## Ambientes
 
-Resumo:
-- Postman e uso manual da API: ambiente normal
-- suíte integrada automatizada: ambiente de teste
+- `.env`: desenvolvimento local e uso manual da API.
+- `.env.test`: testes automatizados e carga isolada.
+- `docker-compose.yml`: Postgres, API e PgAdmin de desenvolvimento.
+- `docker-compose.test.yml`: Postgres isolado para testes.
 
-## Portas usadas
+Portas padrão:
+
 - API local: `9090`
-- Postgres de desenvolvimento via Docker: `5433`
+- Postgres de desenvolvimento: `5433`
 - Postgres de teste: `5434`
 - PgAdmin: `8080`
 
-## Desenvolvimento local
-Se quiser usar apenas o banco em container:
+## Rodar Em Desenvolvimento
+
+Para subir apenas o banco e o PgAdmin via Docker:
+
 ```bash
 docker compose up postgres pgadmin -d
 npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
 Nesse modo:
-- o banco sobe em `localhost:5433`
-- a API sobe localmente em `localhost:9090`
-- você pode usar o Postman normalmente
 
-Importante:
-- não suba a API no Docker e localmente ao mesmo tempo
-- isso causa conflito na porta `9090`
+- Banco: `localhost:5433`
+- API: `http://localhost:9090`
+- PgAdmin: `http://localhost:8080`
+
+Evite subir a API no Docker e via `npm run dev` ao mesmo tempo, porque ambas usam a porta `9090`.
 
 Para rodar tudo por Docker:
+
 ```bash
 docker compose up --build -d
 ```
 
-Se usar esse modo:
-- não rode `npm run dev` ao mesmo tempo
+## Usuários Seed
 
-## Primeiro supervisor
-Como `POST /usuarios` exige autenticação de `SUPERVISOR`, o primeiro supervisor deve existir antes do uso normal da API.
+O seed cria usuários funcionais para desenvolvimento e testes.
 
-Opções:
-- inserir manualmente o primeiro supervisor no banco
-- usar um seed/script interno, se o time optar por criar depois
+Senha padrão:
 
-Campos necessários no primeiro usuário:
-- `nome`
-- `email`
-- `matricula`
-- `senha_hash`
-- `perfil = SUPERVISOR`
-- `setor`
-- `ativo = true`
-
-## Testes
-Unitários:
-```bash
-npm test
+```text
+seed123
 ```
 
-Integrados com Postgres isolado:
+Principais acessos:
+
+- `gestor@seed.local`
+- `supervisor@seed.local`
+- `tecnico.norte@seed.local`
+- `tecnico.sul@seed.local`
+- `solicitante.linha1@seed.local`
+- `solicitante.linha2@seed.local`
+
+## Testes
+
+Unitários:
+
+```bash
+npm run test:unit
+```
+
+Integração com Postgres isolado:
+
 ```bash
 npm run test:integration:docker
 ```
 
 Esse comando:
-1. sobe `postgres-test` em `localhost:5434`
-2. carrega `.env.test`
-3. aplica migrations
-4. roda a suíte integrada
-5. derruba os containers no final
 
-Se quiser rodar a integração manualmente:
+1. Sobe `postgres-test` em `localhost:5434`.
+2. Carrega `.env.test`.
+3. Aplica migrations.
+4. Executa a suíte de integração.
+5. Derruba o ambiente de teste ao final.
+
+## Testes De Carga
+
+Os testes de carga usam k6 em container e banco isolado de teste.
+
+Smoke:
+
 ```bash
-docker compose -f docker-compose.test.yml up -d
-set -a
-source .env.test
-set +a
-npm run db:migrate
-npm run test:integration:jest
+npm run load:smoke
 ```
 
-Se o Docker não estiver acessível, os testes integrados vão falhar ao conectar em `127.0.0.1:5434`.
+Demais cenários:
 
-## Teste manual da API
-Use o arquivo [`testes-api.http`](./testes-api.http) como roteiro.
+```bash
+npm run load:steady
+npm run load:spike
+```
 
-Fluxo recomendado:
-1. verificar `GET /health`
-2. fazer login como supervisor
-3. criar usuários de teste
-4. criar equipamento
-5. abrir OS
-6. atribuir técnico
-7. atualizar status
-8. concluir OS
-9. consultar histórico
+Esses comandos usam `.env.test`, banco `servicopim_test` e porta `9091` para a API de carga.
 
-## Endpoints úteis
+## Teste Manual Da API
+
+Healthcheck:
+
+```bash
+curl http://localhost:9090/health
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:9090/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"gestor@seed.local","senha":"seed123"}'
+```
+
+Fluxo manual recomendado:
+
+1. Verificar `GET /health`.
+2. Fazer login.
+3. Consultar dashboard.
+4. Cadastrar ou listar equipamentos.
+5. Abrir uma ordem de serviço.
+6. Atribuir técnico.
+7. Iniciar e concluir a ordem.
+8. Conferir histórico e relatórios.
+
+## Endpoints Úteis
+
 - API: `http://localhost:9090`
 - Healthcheck: `http://localhost:9090/health`
 - PgAdmin: `http://localhost:8080`

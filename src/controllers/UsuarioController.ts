@@ -6,10 +6,12 @@ import { Perfil } from "../types/Perfil.js";
 const usuarioService = new UsuarioService(appDataSource);
 
 export class UsuarioController {
-  // POST /usuarios — acesso já controlado pelo ensureRole(SUPERVISOR) na rota
+  // POST /usuarios — acesso controlado por hierarquia no service
   async create(req: Request, res: Response): Promise<Response> {
     const data = req.body;
-    const usuario = await usuarioService.createUser(data);
+    const actorPerfil =
+      req.auth?.perfil === Perfil.GESTOR ? Perfil.GESTOR : Perfil.SUPERVISOR;
+    const usuario = await usuarioService.createUser(data, actorPerfil);
     return res.status(201).json(usuario);
   }
 
@@ -35,13 +37,14 @@ export class UsuarioController {
   // PUT /usuarios/:id — SUPERVISOR pode editar qualquer um; usuario só edita a si mesmo
   async update(req: Request, res: Response): Promise<Response> {
     const isSupervisor = req.auth?.perfil === Perfil.SUPERVISOR;
+    const isGestor = req.auth?.perfil === Perfil.GESTOR;
     const isOwnUser = req.auth?.sub === req.params.id;
 
-    if (!isSupervisor && !isOwnUser) {
+    if (!isSupervisor && !isGestor && !isOwnUser) {
       return res.status(403).json({ message: "Acesso negado: você só pode editar seu próprio perfil" });
     }
 
-    if (!isSupervisor) {
+    if (!isSupervisor && !isGestor) {
       const camposRestritos = ["perfil", "ativo", "matricula"].filter((field) => field in req.body);
 
       if (camposRestritos.length > 0) {
@@ -53,7 +56,11 @@ export class UsuarioController {
 
     const { id } = req.params;
     const data = req.body;
-    const usuario = await usuarioService.updateUser(id as string, data);
+    const usuario = await usuarioService.updateUser(
+      id as string,
+      data,
+      isGestor ? Perfil.GESTOR : isSupervisor ? Perfil.SUPERVISOR : undefined
+    );
     return res.status(200).json(usuario);
   }
 

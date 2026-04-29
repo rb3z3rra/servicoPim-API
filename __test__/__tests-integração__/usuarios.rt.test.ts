@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 
 let accessToken: string;
 let solicitanteToken: string;
+let gestorToken: string;
 
 async function criarUsuarioELogin(
     nome: string,
@@ -53,6 +54,12 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
             Perfil.SOLICITANTE,
             "SOL-RT-001"
         );
+        gestorToken = await criarUsuarioELogin(
+            "Gestor Auth",
+            "gestor-auth@teste.com",
+            Perfil.GESTOR,
+            "GES-RT-001"
+        );
     });
 
     afterAll(async () => {
@@ -88,6 +95,108 @@ describe("Testes de Integração - Rotas de Usuários (Banco Real)", () => {
         expect(response.body.email).toBe("criar-usuario-rt@teste.com");
         expect(response.body.matricula).toBe("USR-RT-001");
         expect(response.body.perfil).toBe("SOLICITANTE");
+    });
+
+    test("POST /usuarios - Supervisor não deve criar gestor", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Gestor Bloqueado",
+                email: "gestor-bloqueado-usuario-rt@teste.com",
+                matricula: "USR-RT-GES-BLOCK",
+                senha: "senha123",
+                perfil: Perfil.GESTOR,
+                setor: "Gestão",
+            })
+            .set("Authorization", `Bearer ${accessToken}`);
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Perfil não permitido para o usuário autenticado");
+    });
+
+    test("POST /usuarios - Supervisor não deve criar supervisor", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Supervisor Bloqueado",
+                email: "supervisor-bloqueado-usuario-rt@teste.com",
+                matricula: "USR-RT-SUP-BLOCK",
+                senha: "senha123",
+                perfil: Perfil.SUPERVISOR,
+                setor: "Operação",
+            })
+            .set("Authorization", `Bearer ${accessToken}`);
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Perfil não permitido para o usuário autenticado");
+    });
+
+    test("POST /usuarios - Gestor deve criar supervisor", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Supervisor Criado Por Gestor",
+                email: "supervisor-gestor-usuario-rt@teste.com",
+                matricula: "USR-RT-GES-SUP",
+                senha: "senha123",
+                perfil: Perfil.SUPERVISOR,
+                setor: "Operação",
+            })
+            .set("Authorization", `Bearer ${gestorToken}`);
+
+        expect(response.status).toBe(201);
+        expect(response.body.perfil).toBe(Perfil.SUPERVISOR);
+    });
+
+    test("POST /usuarios - Gestor deve criar técnico", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Tecnico Criado Por Gestor",
+                email: "tecnico-gestor-usuario-rt@teste.com",
+                matricula: "USR-RT-GES-TEC",
+                senha: "senha123",
+                perfil: Perfil.TECNICO,
+                setor: "Manutenção",
+            })
+            .set("Authorization", `Bearer ${gestorToken}`);
+
+        expect(response.status).toBe(201);
+        expect(response.body.perfil).toBe(Perfil.TECNICO);
+    });
+
+    test("POST /usuarios - Gestor deve criar solicitante", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Solicitante Criado Por Gestor",
+                email: "solicitante-gestor-usuario-rt@teste.com",
+                matricula: "USR-RT-GES-SOL",
+                senha: "senha123",
+                perfil: Perfil.SOLICITANTE,
+                setor: "Produção",
+            })
+            .set("Authorization", `Bearer ${gestorToken}`);
+
+        expect(response.status).toBe(201);
+        expect(response.body.perfil).toBe(Perfil.SOLICITANTE);
+    });
+
+    test("POST /usuarios - Gestor não deve criar outro gestor", async () => {
+        const response = await request(app)
+            .post("/usuarios")
+            .send({
+                nome: "Outro Gestor Bloqueado",
+                email: "outro-gestor-bloqueado-usuario-rt@teste.com",
+                matricula: "USR-RT-GES-GES",
+                senha: "senha123",
+                perfil: Perfil.GESTOR,
+                setor: "Gestão",
+            })
+            .set("Authorization", `Bearer ${gestorToken}`);
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Perfil não permitido para o usuário autenticado");
     });
 
     test("POST /usuarios - Deve falhar com email duplicado", async () => {

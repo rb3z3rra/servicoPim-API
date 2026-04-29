@@ -10,6 +10,13 @@ type ListarEquipamentosFilters = {
   comOsAbertas?: boolean;
 };
 
+type EquipamentoInput = Partial<Equipamento> & {
+  nome: string;
+  tipo: string;
+  localizacao: string;
+  codigo?: string;
+};
+
 export class EquipamentoService {
   private equipamentoRepo: Repository<Equipamento>;
 
@@ -111,16 +118,20 @@ export class EquipamentoService {
     return equipamento;
   }
 
-  async createEquipamento(data: Equipamento): Promise<Equipamento> {
+  async createEquipamento(data: EquipamentoInput): Promise<Equipamento> {
+    const codigo = data.codigo?.trim() || await this.gerarCodigo();
     const codigoExistente = await this.equipamentoRepo.findOne({
-      where: { codigo: data.codigo },
+      where: { codigo },
     });
 
     if (codigoExistente) {
       throw new AppError("Código do equipamento já cadastrado");
     }
 
-    const novoEquipamento = this.equipamentoRepo.create(data);
+    const novoEquipamento = this.equipamentoRepo.create({
+      ...data,
+      codigo,
+    });
 
     await this.equipamentoRepo.save(novoEquipamento);
 
@@ -159,5 +170,29 @@ export class EquipamentoService {
 
     equipamento.ativo = false;
     await this.equipamentoRepo.save(equipamento);
+  }
+
+  private async gerarCodigo(): Promise<string> {
+    const prefixo = "EQP";
+    const ultimo = await this.equipamentoRepo
+      .createQueryBuilder("equipamento")
+      .select("equipamento.codigo", "codigo")
+      .where("equipamento.codigo LIKE :prefixo", { prefixo: `${prefixo}-%` })
+      .orderBy("equipamento.codigo", "DESC")
+      .getRawOne<{ codigo?: string }>();
+
+    const ultimoNumero = Number(ultimo?.codigo?.replace(`${prefixo}-`, "") ?? 0);
+    let proximoNumero = Number.isFinite(ultimoNumero) ? ultimoNumero + 1 : 1;
+
+    while (true) {
+      const codigo = `${prefixo}-${String(proximoNumero).padStart(6, "0")}`;
+      const existente = await this.equipamentoRepo.findOne({ where: { codigo } });
+
+      if (!existente) {
+        return codigo;
+      }
+
+      proximoNumero++;
+    }
   }
 }

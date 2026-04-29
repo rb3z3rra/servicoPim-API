@@ -3,6 +3,7 @@ import type { Relation } from "typeorm";
 import { Prioridade } from "../types/os_prioridade.js";
 import { TipoManutencao } from "../types/os_tipoManutencao.js";
 import { StatusOs } from "../types/os_status.js";
+import { StatusPrazoOS } from "../types/os_status_prazo.js";
 import { Equipamento } from "./Equipamento.js";
 import { Usuario } from "./Usuario.js";
 import { HistoricoOS } from "./HistoricoOS.js";
@@ -43,6 +44,13 @@ export class OrdemServico {
 
   @Column({ type: "enum", enum: StatusOs, default: StatusOs.ABERTA })
   status!: StatusOs;
+
+  @Column({
+    type: "enum",
+    enum: StatusPrazoOS,
+    default: StatusPrazoOS.NO_PRAZO,
+  })
+  status_prazo!: StatusPrazoOS;
 
   @Column({ type: "varchar", nullable: false })
   descricao_falha!: string;

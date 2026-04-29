@@ -1,19 +1,21 @@
 # ServicoPIM API
 
-API REST do sistema de gestao de ordens de servico de manutencao do projeto ServicoPIM.
+API REST do ServicoPIM, responsavel por autenticacao, autorizacao, regras de negocio, persistencia, auditoria e indicadores do sistema de ordens de servico.
 
 ## Visao geral
 
 O backend concentra:
 
-- autenticacao
+- autenticacao e sessao
 - autorizacao por perfil
 - regras de negocio
-- persistencia
-- auditoria
-- testes unitarios e de integracao
+- persistencia em PostgreSQL
+- historico/auditoria de O.S.
+- configuracao de prazo de atendimento
+- dashboard agregado
+- testes unitarios, integracao e carga
 
-Stack principal:
+## Tecnologias
 
 - `Node.js`
 - `TypeScript`
@@ -22,55 +24,38 @@ Stack principal:
 - `PostgreSQL`
 - `Zod`
 - `JWT`
+- `bcryptjs`
+- `Jest`
+- `Supertest`
+- `Docker`
+- `k6` para carga
 
-## Modulos principais
-
-- `Autenticacao`
-- `Usuarios`
-- `Equipamentos`
-- `Ordens de Servico`
-- `Historico de O.S.`
-- `Apontamentos de Trabalho`
-
-## Perfis do sistema
+## Perfis
 
 - `SOLICITANTE`
-  - cria ordens de servico
-  - visualiza apenas as proprias O.S.
+  - cria O.S.
+  - visualiza as proprias solicitacoes
 
 - `TECNICO`
   - assume O.S. abertas disponiveis
   - inicia execucao
-  - atualiza status da propria fila
   - registra apontamentos
+  - atualiza status permitido
   - conclui O.S. sob sua responsabilidade
 
 - `SUPERVISOR`
-  - cria e gerencia usuarios
-  - cria e gerencia equipamentos
-  - atribui ou transfere tecnico
+  - administra usuarios funcionais conforme hierarquia
+  - administra equipamentos
+  - atribui tecnico
   - cancela O.S.
-  - acessa historico global e dashboard consolidado
+  - acessa historico e dashboard operacional
 
-## Seguranca e sessao
+- `GESTOR`
+  - possui visao geral de gestao
+  - acessa configuracao de prazo de atendimento
+  - pode administrar perfis funcionais conforme regra atual
 
-O backend usa:
-
-- `accessToken` JWT de curta duracao
-- `refreshToken` em cookie `HttpOnly`
-- rotacao de refresh token
-- revogacao server-side de refresh token
-- `helmet`
-- `express-rate-limit`
-- validacao de entrada com `Zod`
-- controle de acesso com `ensureAuth` e `ensureRole`
-
-Importante:
-
-- logout nao apenas limpa o cookie, ele tambem revoga a sessao no servidor
-- refresh tokens sao armazenados no banco em formato rastreavel e comparados por hash
-
-## Entidades atuais
+## Entidades principais
 
 - `Usuario`
 - `Equipamento`
@@ -78,8 +63,9 @@ Importante:
 - `HistoricoOS`
 - `ApontamentoOS`
 - `RefreshToken`
+- `ConfiguracaoPrazoAtendimento`
 
-## Estrutura do projeto
+## Estrutura
 
 ```text
 src/
@@ -97,18 +83,28 @@ src/
   scripts/
   services/
   types/
+__test__/
+load-tests/
+scripts/
 ```
 
-Arquivos centrais:
+## Seguranca
 
-- `src/app.ts`
-  monta middlewares, headers, rate limit e rotas
+O backend usa:
 
-- `src/server.ts`
-  inicializa banco, executa migrations e sobe a API
+- senha com hash
+- `accessToken` JWT de curta duracao
+- `refreshToken` em cookie `HttpOnly`
+- armazenamento server-side de refresh token
+- refresh token revogavel
+- logout com revogacao no servidor
+- `helmet`
+- `express-rate-limit`
+- validacao de entrada com `Zod`
+- controle de acesso com `ensureAuth` e `ensureRole`
+- headers `no-store` para rotas autenticadas
 
-- `src/database/appDataSource.ts`
-  configura datasource, entidades e migrations
+Observacao: a tabela `RefreshToken` ja serve como base para controle de sessoes validas. Para uma v2, ela pode evoluir com `ip`, `user_agent`, `device_id` e `last_used_at` para tela de sessoes ativas do gestor.
 
 ## Endpoints principais
 
@@ -136,7 +132,7 @@ Arquivos centrais:
 - `PUT /equipamentos/:id`
 - `DELETE /equipamentos/:id`
 
-### Ordens de Servico
+### Ordens de servico
 
 - `GET /ordens-servico`
 - `GET /ordens-servico/:id`
@@ -150,33 +146,39 @@ Arquivos centrais:
 - `POST /ordens-servico/:id/apontamentos/iniciar`
 - `PATCH /ordens-servico/:id/apontamentos/finalizar`
 
-### Historico e dashboard
+### Historico, dashboard e configuracoes
 
 - `GET /historico-os`
 - `GET /historico-os/:id`
 - `GET /historico-os/ordem-servico/:osId`
 - `GET /historico-os/usuario/:usuarioId`
 - `GET /dashboard`
+- `GET /configuracoes/prazo-atendimento`
+- `PUT /configuracoes/prazo-atendimento/:prioridade`
 - `GET /health`
 
-## Regras de negocio relevantes
+## Regras de negocio
 
 - usuario inativo nao autentica
 - email e matricula devem ser unicos
+- matricula de usuario pode ser gerada automaticamente
+- codigo de equipamento pode ser gerado automaticamente
 - equipamento inativo nao recebe nova O.S.
 - solicitante autenticado e o autor da O.S.
-- tecnico so pode ser atribuido se for ativo e possuir perfil `TECNICO`
+- tecnico atribuido deve ser ativo e possuir perfil `TECNICO`
 - tecnico pode assumir O.S. aberta e sem responsavel
 - O.S. concluida ou cancelada nao pode ser alterada
-- apenas supervisor pode cancelar O.S.
+- cancelamento e restrito a perfil autorizado
 - O.S. nao pode ser concluida com apontamento aberto
 - acoes importantes da O.S. geram historico
 - exclusao de usuario e equipamento e logica
-- campos administrativos de usuario sao restritos ao supervisor
+- prazos de atendimento sao definidos por prioridade
+- status de prazo concluido preserva se a conclusao ocorreu dentro ou fora do prazo
+- operacoes criticas usam transacao
 
 ## Variaveis de ambiente
 
-Principais variaveis esperadas:
+Principais:
 
 - `PORT`
 - `DB_HOST`
@@ -188,36 +190,17 @@ Principais variaveis esperadas:
 - `JWT_REFRESH_SECRET`
 - `DB_LOGGING`
 - `NODE_ENV`
+- `DISABLE_RATE_LIMIT` opcional para carga/teste controlado
 
-Consulte tambem:
+Consulte tambem [`SETUP.md`](./SETUP.md).
 
-- [`SETUP.md`](./SETUP.md)
-
-## Como executar localmente
-
-### 1. Dependencias
+## Desenvolvimento
 
 ```bash
 npm install
-```
-
-### 2. Subir banco
-
-```bash
 docker compose up -d postgres
-```
-
-O Postgres fica acessivel para a API dentro da rede Docker do projeto. No compose atual ele nao e publicado externamente por padrao.
-
-### 3. Rodar migrations
-
-```bash
 npm run db:migrate
-```
-
-### 4. Subir API
-
-```bash
+npm run db:seed
 npm run dev
 ```
 
@@ -227,128 +210,90 @@ API local:
 http://localhost:9090
 ```
 
-## Como executar tudo em Docker
+No compose atual, o Postgres fica publicado em `127.0.0.1:5433` e o PgAdmin em `127.0.0.1:8080`.
+
+## Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-No compose atual:
+Servicos principais:
 
-- a API fica publicada em `127.0.0.1:${PORT}`
-- o PgAdmin fica restrito a `127.0.0.1:8080`
-- o Postgres nao e exposto externamente por padrao
-
-## Seeds
-
-### Seed base
-
-Cria dados de demonstracao controlados:
-
-```bash
-npm run db:seed
-```
-
-### Seed complementar de O.S.
-
-Gera massa adicional usando os dados atuais:
-
-```bash
-npm run db:seed:ordens -- 200
-```
+- API: `127.0.0.1:${PORT}`
+- Postgres: `127.0.0.1:5433`
+- PgAdmin: `127.0.0.1:8080`
 
 ## Scripts
 
-- `npm run dev`
-  sobe a API em modo desenvolvimento
+- `npm run dev`: sobe API em desenvolvimento
+- `npm run build`: compila TypeScript
+- `npm start`: executa build compilado
+- `npm run db:migrate`: aplica migrations
+- `npm run db:seed`: popula dados base
+- `npm run db:seed:ordens -- 200`: gera massa adicional de O.S.
+- `npm test`: alias para unitarios
+- `npm run test:unit`: executa testes unitarios
+- `npm run test:integration:jest`: integracao com banco ja disponivel
+- `npm run test:integration:docker`: sobe Postgres de teste, migra, testa e derruba
+- `npm run load:smoke`: carga rapida com k6 local
+- `npm run load:steady`: carga estavel com k6 local
+- `npm run load:spike`: pico de carga com k6 local
 
-- `npm run build`
-  compila o projeto
+## Testes
 
-- `npm start`
-  executa a versao compilada
-
-- `npm run db:migrate`
-  aplica migrations no banco configurado
-
-- `npm run db:seed`
-  popula dados base
-
-- `npm run db:seed:ordens -- 200`
-  gera massa de ordens
-
-- `npm test`
-  alias para testes unitarios
-
-- `npm run test:unit`
-  roda a suite unitaria
-
-- `npm run test:integration:jest`
-  roda integracao assumindo banco de teste ja disponivel
-
-- `npm run test:integration:docker`
-  sobe Postgres de teste, aplica migrations, roda integracao e derruba o ambiente
-
-## Como testar a API
-
-### 1. Build
-
-Valida compilacao:
+### Build
 
 ```bash
 npm run build
 ```
 
-### 2. Testes unitarios
-
-Cobrem services, auth, middlewares e regras isoladas:
+### Unitarios
 
 ```bash
 npm run test:unit
 ```
 
-### 3. Testes de integracao com Docker
+Ultima validacao local: `103` testes unitarios passando.
 
-Esse e o fluxo recomendado porque ja sobe o banco correto automaticamente:
+### Integracao com Docker
 
 ```bash
 npm run test:integration:docker
 ```
 
-O script faz isto:
+Ultima validacao local: `87` testes de integracao passando.
 
-1. sobe `postgres-test` via `docker-compose.test.yml`
-2. carrega `.env.test`
-3. aplica `migrations`
-4. executa Jest de integracao
-5. derruba o ambiente de teste
+### Carga com k6 via Docker
 
-### 4. Testes de integracao com banco ja disponivel
-
-Se voce ja tiver um banco de teste pronto e configurado:
+Sem instalar k6 na maquina:
 
 ```bash
-npm run test:integration:jest
+docker run --rm --network host \
+  -e BASE_URL=http://localhost:9090 \
+  -e LOGIN_EMAIL=supervisor@seed.local \
+  -e LOGIN_SENHA=seed123 \
+  -v "$PWD/load-tests:/scripts" \
+  grafana/k6:latest run /scripts/smoke.js
 ```
 
-## Estado atual de qualidade
+Para medir capacidade real sem o rate limit bloquear o cenario, suba uma instancia de carga controlada:
 
-Validacoes mais importantes atualmente cobertas:
+```bash
+PORT=9091 NODE_ENV=load DISABLE_RATE_LIMIT=true node dist/src/server.js
+```
 
-- compilacao da API
-- testes unitarios
-- testes de integracao com banco real
-- revogacao de refresh token
-- rotacao de sessao
-- autorizacao por perfil
-- regras de O.S.
+Depois rode o k6 apontando para `http://localhost:9091`.
 
-## Observacoes de arquitetura
+Ultima validacao local:
 
-- a API usa `migrations`, nao `synchronize`
-- o refresh token e revogavel server-side por meio da entidade `RefreshToken`
-- o logout invalida a sessao atual no backend
-- operacoes criticas de O.S. usam transacao
-- respostas autenticadas usam `no-store`
-- o dashboard e agregado no backend
-- dependencias de producao foram auditadas e os `overrides` atuais corrigem as vulnerabilidades reportadas
+- `smoke`: 0% falhas, p95 ~138ms
+- `steady`: 0% falhas com rate limit desativado, p95 ~15ms
+- `spike`: 0% falhas com 40 VUs, p95 ~291ms
+
+## Observacoes
+
+- A API usa migrations, nao `synchronize`.
+- O dashboard e agregado no backend.
+- O `.dockerignore` e necessario para reduzir contexto de build e evitar envio de `node_modules`, `.env`, testes e arquivos que nao entram na imagem.
+- O rate limit protege a API em uso normal; em carga controlada ele pode ser desativado por variavel de ambiente.

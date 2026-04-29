@@ -11,10 +11,10 @@ import { Perfil } from "../types/usr_perfil.js";
 const usuarioRoutes = Router();
 const usuarioController = new UsuarioController();
 
-// POST /usuarios — apenas SUPERVISOR pode criar usuários
+// POST /usuarios — gestor e supervisor criam conforme hierarquia validada no service
 usuarioRoutes.post("/",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR),
+  ensureRole(Perfil.SUPERVISOR, Perfil.GESTOR),
   validarBody(createUserSchemaDTO),
   asyncHandler(usuarioController.create.bind(usuarioController))
 );
@@ -22,20 +22,20 @@ usuarioRoutes.post("/",
 // GET /usuarios — apenas SUPERVISOR pode listar todos os usuários
 usuarioRoutes.get("/",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR),
+  ensureRole(Perfil.SUPERVISOR, Perfil.GESTOR),
   asyncHandler(usuarioController.getAll.bind(usuarioController))
 );
 
 usuarioRoutes.get("/:id/detalhes",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR),
+  ensureRole(Perfil.SUPERVISOR, Perfil.GESTOR),
   asyncHandler(usuarioController.getDetails.bind(usuarioController))
 );
 
 // GET /usuarios/:id — apenas SUPERVISOR pode buscar outro usuário pelo id
 usuarioRoutes.get("/:id",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR),
+  ensureRole(Perfil.SUPERVISOR, Perfil.GESTOR),
   asyncHandler(usuarioController.getById.bind(usuarioController))
 );
 

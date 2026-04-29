@@ -6,11 +6,12 @@ import bcrypt from "bcryptjs";
 import { OrdemServico } from "../entities/OrdemServico.js";
 import { ApontamentoOS } from "../entities/ApontamentoOS.js";
 import { StatusOs } from "../types/os_status.js";
+import { Perfil } from "../types/usr_perfil.js";
 
 type UserInput = {
   nome: string;
   email: string;
-  matricula: string;
+  matricula?: string;
   senha: string;
   perfil: Usuario["perfil"];
   setor?: string | null;
@@ -18,6 +19,7 @@ type UserInput = {
 };
 
 type UserUpdateInput = Partial<UserInput>;
+type PerfilAtorAdministrativo = Perfil.SUPERVISOR | Perfil.GESTOR;
 
 export class UsuarioService {
   private userRepo: Repository<Usuario>;
@@ -102,9 +104,14 @@ export class UsuarioService {
     return user;
   }
 
-  async createUser(data: UserInput): Promise<Usuario> {
+  async createUser(data: UserInput, actorPerfil?: PerfilAtorAdministrativo): Promise<Usuario> {
+    if (actorPerfil) {
+      this.assertPodeDefinirPerfil(actorPerfil, data.perfil);
+    }
+
+    const matricula = data.matricula?.trim() || await this.gerarMatricula();
     const usuarioExistente = await this.userRepo.findOne({
-      where: [{ email: data.email }, { matricula: data.matricula }],
+      where: [{ email: data.email }, { matricula }],
     });
 
     if (usuarioExistente) {
@@ -118,7 +125,7 @@ export class UsuarioService {
     const novoUsuario = this.userRepo.create({
       nome: data.nome,
       email: data.email,
-      matricula: data.matricula,
+      matricula,
       senha_hash: await bcrypt.hash(data.senha, 8),
       perfil: data.perfil,
       setor: data.setor ?? null,
@@ -130,8 +137,16 @@ export class UsuarioService {
     return novoUsuario;
   }
 
-  async updateUser(id: string, data: UserUpdateInput): Promise<Usuario> {
+  async updateUser(
+    id: string,
+    data: UserUpdateInput,
+    actorPerfil?: PerfilAtorAdministrativo
+  ): Promise<Usuario> {
     const user = await this.getById(id);
+
+    if (actorPerfil) {
+      this.assertPodeEditarUsuario(actorPerfil, user, data);
+    }
 
     if (data.email && data.email !== user.email) {
       const emailExistente = await this.userRepo.findOne({
@@ -175,6 +190,58 @@ export class UsuarioService {
     const user = await this.getById(id);
     user.ativo = false;
     await this.userRepo.save(user);
+  }
+
+  private assertPodeEditarUsuario(
+    actorPerfil: PerfilAtorAdministrativo,
+    usuarioAtual: Usuario,
+    data: UserUpdateInput
+  ): void {
+    if (actorPerfil === Perfil.SUPERVISOR && usuarioAtual.perfil === Perfil.GESTOR) {
+      throw new AppError("Supervisor não pode editar usuário gestor", 403);
+    }
+
+    if (data.perfil) {
+      this.assertPodeDefinirPerfil(actorPerfil, data.perfil);
+    }
+  }
+
+  private assertPodeDefinirPerfil(
+    actorPerfil: PerfilAtorAdministrativo,
+    perfilDestino: Usuario["perfil"]
+  ): void {
+    const perfisPermitidos =
+      actorPerfil === Perfil.GESTOR
+        ? [Perfil.SUPERVISOR, Perfil.TECNICO, Perfil.SOLICITANTE]
+        : [Perfil.TECNICO, Perfil.SOLICITANTE];
+
+    if (!perfisPermitidos.includes(perfilDestino)) {
+      throw new AppError("Perfil não permitido para o usuário autenticado", 403);
+    }
+  }
+
+  private async gerarMatricula(): Promise<string> {
+    const prefixo = "USR";
+    const ultima = await this.userRepo
+      .createQueryBuilder("usuario")
+      .select("usuario.matricula", "matricula")
+      .where("usuario.matricula LIKE :prefixo", { prefixo: `${prefixo}-%` })
+      .orderBy("usuario.matricula", "DESC")
+      .getRawOne<{ matricula?: string }>();
+
+    const ultimoNumero = Number(ultima?.matricula?.replace(`${prefixo}-`, "") ?? 0);
+    let proximoNumero = Number.isFinite(ultimoNumero) ? ultimoNumero + 1 : 1;
+
+    while (true) {
+      const matricula = `${prefixo}-${String(proximoNumero).padStart(6, "0")}`;
+      const existente = await this.userRepo.findOne({ where: { matricula } });
+
+      if (!existente) {
+        return matricula;
+      }
+
+      proximoNumero++;
+    }
   }
 }
 

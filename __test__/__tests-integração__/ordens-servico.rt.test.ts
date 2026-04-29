@@ -7,6 +7,7 @@ import { OrdemServico } from "../../src/entities/OrdemServico.js";
 import { HistoricoOS } from "../../src/entities/HistoricoOS.js";
 import { ApontamentoOS } from "../../src/entities/ApontamentoOS.js";
 import { Perfil } from "../../src/types/usr_perfil.js";
+import { StatusPrazoOS } from "../../src/types/os_status_prazo.js";
 import { Like } from "typeorm";
 import bcrypt from "bcryptjs";
 
@@ -318,6 +319,38 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         expect(byDescription.status).toBe(200);
         expect(byDescription.body.some((os: any) => os.id === createRes.body.id)).toBe(true);
+    });
+
+    test("GET /ordens-servico - Deve filtrar por período de abertura", async () => {
+        const createRes = await request(app)
+            .post("/ordens-servico")
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                equipamentoId,
+                tipo_manutencao: "CORRETIVA",
+                prioridade: "MÉDIA",
+                descricao_falha: "OS para validar filtro por período de abertura",
+            });
+
+        const dataAbertura = String(createRes.body.abertura_em).slice(0, 10);
+        const dataFutura = new Date(createRes.body.abertura_em);
+        dataFutura.setDate(dataFutura.getDate() + 1);
+        const dataFuturaIso = dataFutura.toISOString().slice(0, 10);
+
+        const dentroPeriodo = await request(app)
+            .get("/ordens-servico")
+            .query({ dataInicio: dataAbertura, dataFim: dataAbertura })
+            .set("Authorization", `Bearer ${solicitanteToken}`);
+
+        const foraPeriodo = await request(app)
+            .get("/ordens-servico")
+            .query({ dataInicio: dataFuturaIso, dataFim: dataFuturaIso })
+            .set("Authorization", `Bearer ${solicitanteToken}`);
+
+        expect(dentroPeriodo.status).toBe(200);
+        expect(dentroPeriodo.body.some((os: any) => os.id === createRes.body.id)).toBe(true);
+        expect(foraPeriodo.status).toBe(200);
+        expect(foraPeriodo.body.some((os: any) => os.id === createRes.body.id)).toBe(false);
     });
 
     test("GET /ordens-servico/:id - Deve buscar OS por ID", async () => {
@@ -761,5 +794,44 @@ describe("Testes de Integração - Rotas de Ordens de Serviço (Banco Real)", ()
 
         expect(response.status).toBe(200);
         expect(response.body.status).toBe("CANCELADA");
+    });
+
+    test("PATCH /ordens-servico/:id/concluir - OS estourada continua com prazo estourado ao concluir", async () => {
+        const createRes = await request(app)
+            .post("/ordens-servico")
+            .set("Authorization", `Bearer ${solicitanteToken}`)
+            .send({
+                equipamentoId,
+                tipo_manutencao: "CORRETIVA",
+                prioridade: "CRÍTICA",
+                descricao_falha: "Teste prazo estourado ao concluir",
+            });
+
+        const osRepo = appDataSource.getRepository(OrdemServico);
+        await osRepo.update(createRes.body.id, {
+            abertura_em: new Date(Date.now() - 8 * 60 * 60 * 1000),
+        });
+
+        await request(app)
+            .patch(`/ordens-servico/${createRes.body.id}/atribuir-tecnico`)
+            .set("Authorization", `Bearer ${supervisorToken}`)
+            .send({ tecnicoId });
+
+        await request(app)
+            .patch(`/ordens-servico/${createRes.body.id}/iniciar`)
+            .set("Authorization", `Bearer ${tecnicoToken}`);
+
+        const response = await request(app)
+            .patch(`/ordens-servico/${createRes.body.id}/concluir`)
+            .set("Authorization", `Bearer ${tecnicoToken}`)
+            .send({
+                descricao_servico: "Conclusão após prazo limite",
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe("CONCLUIDA");
+        expect(response.body.status_prazo).toBe(
+            StatusPrazoOS.CONCLUIDA_COM_PRAZO_ESTOURADO
+        );
     });
 });

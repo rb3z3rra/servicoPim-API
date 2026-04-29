@@ -32,6 +32,8 @@ export class OrdemServicoController {
       tecnicoId: filtros.tecnicoId,
       setor: filtros.setor,
       busca: filtros.busca,
+      dataInicio: filtros.dataInicio,
+      dataFim: filtros.dataFim,
     }, req.auth.sub, req.auth.perfil);
     return res.status(200).json(ordensServico);
   }

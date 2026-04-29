@@ -75,6 +75,13 @@ const seedUsers: SeedUser[] = [
     setor: "Operação",
   },
   {
+    nome: "Gestor Demo",
+    email: "gestor@seed.local",
+    matricula: "SEED-GES-001",
+    perfil: Perfil.GESTOR,
+    setor: "Gestão",
+  },
+  {
     nome: "Tecnico Demo Norte",
     email: "tecnico.norte@seed.local",
     matricula: "SEED-TEC-001",

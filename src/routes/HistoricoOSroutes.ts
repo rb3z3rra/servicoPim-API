@@ -11,28 +11,28 @@ const controller = new HistoricoOSController();
 historicoRouter.get(
   "/",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO, Perfil.GESTOR),
   asyncHandler(controller.getAll.bind(controller))
 );
 
 historicoRouter.get(
   "/ordem-servico/:osId",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO, Perfil.GESTOR),
   asyncHandler(controller.getByOsId.bind(controller))
 );
 
 historicoRouter.get(
   "/usuario/:usuarioId",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO, Perfil.GESTOR),
   asyncHandler(controller.getByUsuario.bind(controller))
 );
 
 historicoRouter.get(
   "/:id",
   ensureAuth,
-  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO),
+  ensureRole(Perfil.SUPERVISOR, Perfil.TECNICO, Perfil.GESTOR),
   asyncHandler(controller.getById.bind(controller))
 );
 

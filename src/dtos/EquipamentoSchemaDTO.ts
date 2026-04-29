@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createEquipamentoSchemaDTO = z.object({
-  codigo: z.string().trim().min(2).max(100),
+  codigo: z.string().trim().min(2).max(100).optional(),
   nome: z.string().trim().min(2).max(255),
   tipo: z.string().trim().min(2).max(100),
   localizacao: z.string().trim().min(2).max(255),

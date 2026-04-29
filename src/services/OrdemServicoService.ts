@@ -9,6 +9,8 @@ import { HistoricoOSService } from "./HistoricoOSService.js";
 import { Prioridade } from "../types/os_prioridade.js";
 import { ApontamentoOSService } from "./ApontamentoOSService.js";
 import { ApontamentoOS } from "../entities/ApontamentoOS.js";
+import { ConfiguracaoPrazoAtendimentoService } from "./ConfiguracaoPrazoAtendimentoService.js";
+import { StatusPrazoOS } from "../types/os_status_prazo.js";
 
 type CreateOrdemServicoDTO = {
   equipamentoId: number;
@@ -33,6 +35,8 @@ type ListarOrdensServicoFilters = {
   tecnicoId: string | undefined;
   setor: string | undefined;
   busca: string | undefined;
+  dataInicio?: string | undefined;
+  dataFim?: string | undefined;
 };
 
 type ConcluirOrdemServicoDTO = {
@@ -54,6 +58,7 @@ export type DashboardIndicadores = {
   tempo_medio_ate_inicio_horas: number;
   tempo_medio_ate_conclusao_horas: number;
   tempo_medio_trabalho_horas: number;
+  prazo_horas: Record<Prioridade, number>;
 };
 
 type OrdemServicoComMetricas = OrdemServico & {
@@ -63,12 +68,14 @@ type OrdemServicoComMetricas = OrdemServico & {
   total_trabalhado_formatado?: string;
   apontamento_aberto?: boolean;
   apontamentos?: ApontamentoOS[];
+  prazo_limite_em?: Date;
 };
 
 export class OrdemServicoService {
   private ordemServicoRepo: Repository<OrdemServico>;
   private historicoService: HistoricoOSService;
   private apontamentoService: ApontamentoOSService;
+  private configuracaoPrazoAtendimentoService: ConfiguracaoPrazoAtendimentoService;
 
   constructor(appDataSource: DataSource, historicoService?: HistoricoOSService) {
     this.ordemServicoRepo = appDataSource.getRepository(OrdemServico);
@@ -78,6 +85,7 @@ export class OrdemServicoService {
       appDataSource,
       this.historicoService
     );
+    this.configuracaoPrazoAtendimentoService = new ConfiguracaoPrazoAtendimentoService(appDataSource);
   }
 
   async getAll(
@@ -87,6 +95,8 @@ export class OrdemServicoService {
       tecnicoId: undefined,
       setor: undefined,
       busca: undefined,
+      dataInicio: undefined,
+      dataFim: undefined,
     },
     usuarioId?: string,
     usuarioPerfil?: Perfil
@@ -152,6 +162,18 @@ export class OrdemServicoService {
     if (filters.setor) {
       query.andWhere("equipamento.setor ILIKE :setor", {
         setor: `%${filters.setor}%`,
+      });
+    }
+
+    if (filters.dataInicio) {
+      query.andWhere("ordemServico.abertura_em >= :dataInicio", {
+        dataInicio: this.inicioDoDia(filters.dataInicio),
+      });
+    }
+
+    if (filters.dataFim) {
+      query.andWhere("ordemServico.abertura_em <= :dataFim", {
+        dataFim: this.fimDoDia(filters.dataFim),
       });
     }
 
@@ -438,6 +460,7 @@ export class OrdemServicoService {
       const inicioCalculo = new Date(
         ordemServico.inicio_em ?? ordemServico.abertura_em
       );
+      const prazoHoras = await this.configuracaoPrazoAtendimentoService.getMapaHoras();
       const resumoTrabalho = await this.apontamentoService.getResumo(id);
       ordemServico.descricao_servico = data.descricao_servico;
       ordemServico.pecas_utilizadas = data.pecas_utilizadas ?? null;
@@ -446,6 +469,12 @@ export class OrdemServicoService {
       );
       ordemServico.status = StatusOs.CONCLUIDA;
       ordemServico.conclusao_em = conclusaoEm;
+      ordemServico.status_prazo = this.calcularStatusPrazoConclusao(
+        ordemServico.prioridade,
+        ordemServico.abertura_em,
+        conclusaoEm,
+        prazoHoras
+      );
 
       if (!ordemServico.inicio_em) {
         ordemServico.inicio_em = inicioCalculo;
@@ -472,6 +501,7 @@ export class OrdemServicoService {
     const agora = new Date();
     const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
     const scoped = this.createDashboardScopeQuery(usuarioId, usuarioPerfil);
+    const prazoHoras = await this.configuracaoPrazoAtendimentoService.getMapaHoras();
 
     const raw = await scoped
       .select([
@@ -555,6 +585,7 @@ export class OrdemServicoService {
       tempo_medio_ate_inicio_horas: Number(Number(raw?.tempo_medio_ate_inicio_horas ?? 0).toFixed(2)),
       tempo_medio_ate_conclusao_horas: Number(Number(raw?.tempo_medio_ate_conclusao_horas ?? 0).toFixed(2)),
       tempo_medio_trabalho_horas: Number(Number(raw?.tempo_medio_trabalho_horas ?? 0).toFixed(2)),
+      prazo_horas: prazoHoras,
     };
   }
 
@@ -681,6 +712,7 @@ export class OrdemServicoService {
     if (!inicioBase || !fimBase) {
       ordemComMetricas.duracao_execucao_minutos = null;
       ordemComMetricas.duracao_execucao_formatada = null;
+      this.attachPrazoLimite(ordemComMetricas);
       this.attachResumoTrabalho(ordemComMetricas);
       return ordemComMetricas;
     }
@@ -697,9 +729,54 @@ export class OrdemServicoService {
     ordemComMetricas.duracao_execucao_formatada = `${Math.floor(minutos / 60)}h ${String(
       minutos % 60
     ).padStart(2, "0")}min`;
+    this.attachPrazoLimite(ordemComMetricas);
 
     this.attachResumoTrabalho(ordemComMetricas);
     return ordemComMetricas;
+  }
+
+  private calcularStatusPrazoConclusao(
+    prioridade: Prioridade,
+    aberturaEm: Date,
+    conclusaoEm: Date,
+    prazoHoras: Record<Prioridade, number>
+  ): StatusPrazoOS {
+    const prazoLimite = this.calcularPrazoLimite(
+      aberturaEm,
+      prazoHoras[prioridade] ?? this.prazoPadrao(prioridade)
+    );
+
+    return conclusaoEm.getTime() > prazoLimite.getTime()
+      ? StatusPrazoOS.CONCLUIDA_COM_PRAZO_ESTOURADO
+      : StatusPrazoOS.CONCLUIDA_NO_PRAZO;
+  }
+
+  private calcularPrazoLimite(aberturaEm: Date, prazoHoras: number): Date {
+    return new Date(new Date(aberturaEm).getTime() + prazoHoras * 60 * 60 * 1000);
+  }
+
+  private attachPrazoLimite(ordemServico: OrdemServicoComMetricas): void {
+    if (!ordemServico.abertura_em || !ordemServico.prioridade) {
+      return;
+    }
+
+    ordemServico.prazo_limite_em = this.calcularPrazoLimite(
+      ordemServico.abertura_em,
+      this.prazoPadrao(ordemServico.prioridade)
+    );
+  }
+
+  private prazoPadrao(prioridade: Prioridade): number {
+    switch (prioridade) {
+      case Prioridade.CRITICA:
+        return 4;
+      case Prioridade.ALTA:
+        return 8;
+      case Prioridade.MEDIA:
+        return 24;
+      case Prioridade.BAIXA:
+        return 72;
+    }
   }
 
   private calculateHorasTrabalhadas(inicio: Date, fim: Date): number {
@@ -731,5 +808,13 @@ export class OrdemServicoService {
       totalMinutos % 60
     ).padStart(2, "0")}min`;
     ordemServico.apontamento_aberto = apontamentos.some((apontamento) => !apontamento.fimEm);
+  }
+
+  private inicioDoDia(data: string): Date {
+    return new Date(`${data}T00:00:00.000`);
+  }
+
+  private fimDoDia(data: string): Date {
+    return new Date(`${data}T23:59:59.999`);
   }
 }
